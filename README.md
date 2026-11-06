@@ -24,6 +24,7 @@ The real problem is not drawing a line on a map. It is that a first-time visitor
 - **Outdoor steps collapsed**: across a parking lot people walk to the door they can see, so the SDK's zig-zags become "Walk to the mall entrance by Nordstrom. Look for the Nordstrom sign."
 - **Arrival side**: "on your left / on your right / straight ahead", from the last stretch's heading.
 - **Route by need (the second pain, from the visitor's side)**: search "shoes" (or tap a category) and the app offers **"Visit the top 6 shoes stores"** as one route, in the shortest order from where you are (every order of up to 6 stops is tried over walking distances from the map graph, so it is exact). Step-by-step per leg ("Stop 2 of 6"), then back to the car. The visitor compares without getting lost; smaller tenants get visits that used to stop at the anchor. The visitor can reverse the route, drop a stop or move one, and every change is an event: a store that people drop from their own route has an interest problem, not a location problem. Going to one store stays the default.
+- **Operator view (`?view=operator`)**: what the app measures with no new hardware. A live feed of the real events from the visitor app (open in another tab), and thirty days of **simulated** usage labelled as such: route exposure heat map, Pareto, arrivals by parking entrance, zero-result searches, a diagnosis per tenant (location vs interest) with a monthly report, the five hypotheses this release tests, what sensors and sales data would unlock, and the table of assumptions. Plan of events: **[ANALYTICS.md](ANALYTICS.md)**.
 - **Back to my car**: after arrival, one tap routes back to the parking area the visitor came from, with exit wording.
 - **Deep links**: `?from=<lot-a|lot-b|garage>` for the QR signs and `?to=<store>` for tenants to link to their storefront.
 - **Graceful data gaps**: a store with no door in the map data still gets a route to the corridor in front of it. An upstairs store routes to the escalator and hands off.
@@ -35,7 +36,7 @@ The real problem is not drawing a line on a map. It is that a first-time visitor
 |---|---|
 | Blue Dot / live position | Needs on-site infrastructure (Wi-Fi RTT, BLE, VPS) and a calibration pass. The QR start gets most of the value on day one. In an earlier Blue Dot pilot I ran in a mall, floor changes and accuracy near entrances were the issues; that is a project, not a 2-day slice. |
 | Multi-level routing | Out of scope (main level). The route stops at the escalator with a clear instruction instead of a dead end. |
-| Analytics | The most valuable next thing (see below) but needs the customer's agreement on events and privacy. |
+| Sending analytics to a backend | Events are designed and logged (see ANALYTICS.md), but where they go is Greenfield's decision and privacy policy; in the demo they stay in the browser. |
 | Promotions on the route | Easy to build, but it would be fake data in a demo and the tenant program has to be designed with the customer's leasing team. |
 | i18n, accessibility routing toggle, kiosk mode | Not needed for the first slice; the SDK supports all three. |
 
@@ -66,7 +67,7 @@ npm run dev        # http://localhost:5173
 npm run build      # tsc strict + vite build
 ```
 
-Demo deep links: `/?from=lot-a&to=apple`, `/?from=lot-b&to=starbucks`, `/?from=garage&to=urban-kids`.
+Demo deep links: `/?from=lot-a&to=apple`, `/?from=lot-b&to=starbucks`, `/?from=garage&to=urban-kids`, and the operator view `/?view=operator` (open it next to the visitor app to see events arrive live).
 
 Uses Mappedin's public demo key from the [developer docs](https://developer.mappedin.com/docs/demo-keys-and-maps). For a real venue set `VITE_MAPPEDIN_KEY`, `VITE_MAPPEDIN_SECRET` and `VITE_MAPPEDIN_MAP_ID` in `.env` (ignored by git). Parking start points and anchor names live in `src/venue.ts`.
 

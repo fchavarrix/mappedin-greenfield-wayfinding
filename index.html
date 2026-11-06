@@ -104,6 +104,31 @@
       <p class="credit">Map data: Mappedin demo venue · Built on Mappedin JS</p>
     </section>
 
+    <!-- Operator view (?view=operator): what the app measures, for Greenfield's team -->
+    <aside class="ops" id="ops" hidden aria-label="Operator view">
+      <div class="ops-head">
+        <div>
+          <strong>Operator view</strong>
+          <span class="sim-badge">Simulated data · 30 days · one property</span>
+        </div>
+        <a class="ops-link" href="./?from=lot-a" target="_blank" rel="noopener">Open visitor app ↗</a>
+      </div>
+      <section class="live">
+        <h3><span class="dot-live" aria-hidden="true"></span> Live from the visitor app</h3>
+        <ol id="ops-feed" class="feed"></ol>
+      </section>
+      <div class="ops-tabs" role="tablist">
+        <button type="button" role="tab" data-ops-tab="overview" aria-selected="true">Traffic</button>
+        <button type="button" role="tab" data-ops-tab="tenants" aria-selected="false">Tenants</button>
+        <button type="button" role="tab" data-ops-tab="learning" aria-selected="false">What we learn</button>
+        <button type="button" role="tab" data-ops-tab="assumptions" aria-selected="false">Assumptions</button>
+      </div>
+      <div class="ops-tab" id="ops-overview"></div>
+      <div class="ops-tab" id="ops-tenants" hidden></div>
+      <div class="ops-tab" id="ops-learning" hidden></div>
+      <div class="ops-tab" id="ops-assumptions" hidden></div>
+    </aside>
+
     <div class="loading" id="loading">Loading the mall map…</div>
     <script type="module" src="/src/main.ts"></script>
   </body>

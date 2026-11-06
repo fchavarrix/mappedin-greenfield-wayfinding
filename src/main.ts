@@ -14,6 +14,7 @@ import { hoursToday, loadVenue, type Start, type Store, type Venue } from './ven
 import { buildGuidance, fmtDistance, metres, walkMinutes, type Guidance, type Step, type StepKind } from './guidance';
 import { MAX_STOPS, orderCost, planTrip, shortestOrder, type TripPlan } from './trip';
 import { recentEvents, track } from './events';
+import { startOperator } from './operator';
 
 // Mappedin's public demo venue and key (from the developer docs). A customer deployment swaps these
 // for the venue's own key through env vars; nothing else in the app is venue-specific.
@@ -41,6 +42,8 @@ let guidance: Guidance | undefined;
 /** For each step of the flattened guidance, which leg it belongs to. */
 let stepLeg: number[] = [];
 let stepIndex = 0;
+/** Arrival events already logged for the current route (one per stop). */
+let reached = new Set<number>();
 let returning = false;
 let category: string | undefined;
 let tripCandidates: { label: string; stores: Store[]; ranked: boolean } | undefined;
@@ -141,6 +144,12 @@ function renderChips() {
 }
 
 let searchSeq = 0;
+let searchTimer: number | undefined;
+/** Logged once the visitor pauses typing, so "c", "co", "cof" do not count as three searches. */
+function trackSearch(term: string, results: number) {
+  clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => track('search', { term: term.toLowerCase(), results, zero: results === 0 }), 900);
+}
 async function renderResults() {
   const seq = ++searchSeq;
   const term = $<HTMLInputElement>('q').value.trim();
@@ -160,6 +169,7 @@ async function renderResults() {
   // Main level first: that is what this release routes end to end.
   list = [...list.filter((s) => s.mainLevel), ...list.filter((s) => !s.mainLevel)];
   renderTripBar(term.length >= 2 ? term : category, list);
+  if (term.length >= 2) trackSearch(term, list.length);
 
   const items = list.slice(0, 80).map((s) => {
     const h = hoursToday(s);
@@ -213,6 +223,7 @@ async function selectStore(next: Store) {
   clearRoute();
   stops = [next];
   returning = false;
+  track('store_selected', { store: next.name, category: next.category, from: start?.id ?? 'unknown' });
   $('store-logo').outerHTML = logo(next, 'store-logo');
   $('store-name').textContent = next.name;
   $('store-meta').textContent = [next.category, next.mainLevel ? 'Main Level' : next.floor.name].join(' · ');
@@ -460,6 +471,8 @@ function clearRoute() {
 function startSteps() {
   if (!guidance) return;
   stepIndex = 0;
+  reached = new Set();
+  if (!returning) track('route_started', { kind: multi() ? 'category' : 'single', stops: stops.length, from: start?.id ?? 'unknown' });
   $('summary').textContent = `${guidance.minutes} min · ${fmtDistance(guidance.distance)}`;
   $('steps').innerHTML = guidance.steps
     .map(
@@ -485,6 +498,10 @@ function renderStep() {
   $('step-detail').textContent = step.detail ?? '';
   $('progress').textContent = multi() && !returning ? `Stop ${leg + 1} of ${stops.length} · step ${stepIndex + 1} of ${steps.length}` : `Step ${stepIndex + 1} of ${steps.length}`;
   $<HTMLButtonElement>('prev').disabled = stepIndex === 0;
+  if (step.kind === 'arrive' && !returning && !reached.has(leg)) {
+    reached.add(leg);
+    track(last ? 'arrived' : 'stop_reached', { store: stops[leg].name, stop: leg + 1, of: stops.length });
+  }
   const atStop = step.kind === 'arrive' && multi() && !returning;
   $('next').textContent = !last ? (atStop ? 'Next stop' : 'Next') : returning ? 'Done' : `Back to ${start.short}`;
   const back = document.querySelector<HTMLElement>('[data-view="steps"] [data-back]');
@@ -528,6 +545,7 @@ function heading(path: Coordinate[]) {
 async function routeBack() {
   if (!start || !stops.length) return;
   const from = lastStop();
+  track('route_back', { from: from.name, to: start.id });
   // Start the way back where the way in ended (the storefront may have no door in the data).
   const lastLeg = legs[legs.length - 1];
   const end = lastLeg?.coordinates[lastLeg.coordinates.length - 1];
@@ -571,6 +589,9 @@ const ARROWS: Record<StepKind, string> = {
 
 // ---------- wiring ----------
 function goBack() {
+  if (view === 'steps' && !returning && guidance && !reached.has(stops.length - 1)) {
+    track('route_abandoned', { step: stepIndex + 1, of: guidance.steps.length, store: stops[stepLeg[stepIndex] ?? 0]?.name ?? '' });
+  }
   if (view === 'steps' && !returning && multi()) {
     resetCamera();
     void buildTrip([...stops]);
@@ -586,7 +607,10 @@ function bind() {
     if (!t) return;
     if (t.dataset.start) {
       const s = venue.starts.find((x) => x.id === t.dataset.start);
-      if (s) setStart(s);
+      if (s) {
+        track('parking_selected', { entrance: s.id });
+        setStart(s);
+      }
     } else if (t.dataset.cat) {
       category = t.dataset.cat === 'All' ? undefined : t.dataset.cat;
       renderChips();
@@ -661,16 +685,24 @@ async function init() {
   }
   if (import.meta.env.DEV) Object.assign(window, { mapData, mapView, venue, buildGuidance, planTrip, recentEvents });
 
+  $('loading').remove();
+
+  // The operator's view runs on the same map, without the visitor UI.
+  if (new URLSearchParams(location.search).get('view') === 'operator') {
+    await startOperator(mapData, mapView, venue);
+    return;
+  }
+
   renderStarts();
   renderChips();
   void renderResults();
   bind();
-  $('loading').remove();
 
   // Deep links: ?from=lot-a is what the QR sign at each parking entrance encodes; ?to=<store> lets a
   // tenant link straight to their storefront (newsletter, Google Business Profile).
   const params = new URLSearchParams(location.search);
   const from = venue.starts.find((s) => s.id === (params.get('from') ?? recall()));
+  if (from && params.get('from')) track('qr_scan', { entrance: from.id });
   const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const to = params.get('to');
   const target = to ? venue.stores.find((s) => slug(s.name) === slug(to)) : undefined;
