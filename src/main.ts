@@ -12,7 +12,8 @@ import '@mappedin/mappedin-js/lib/index.css';
 import './style.css';
 import { hoursToday, loadVenue, type Start, type Store, type Venue } from './venue';
 import { buildGuidance, fmtDistance, metres, walkMinutes, type Guidance, type Step, type StepKind } from './guidance';
-import { MAX_STOPS, planTrip, type TripPlan } from './trip';
+import { MAX_STOPS, orderCost, planTrip, shortestOrder, type TripPlan } from './trip';
+import { recentEvents, track } from './events';
 
 // Mappedin's public demo venue and key (from the developer docs). A customer deployment swaps these
 // for the venue's own key through env vars; nothing else in the app is venue-specific.
@@ -44,6 +45,8 @@ let returning = false;
 let category: string | undefined;
 let tripCandidates: { label: string; stores: Store[]; ranked: boolean } | undefined;
 let plan: TripPlan | undefined;
+/** True once the visitor reorders the route by hand (their order is kept on later edits). */
+let customised = false;
 let view: View = 'park';
 let token = 0;
 let hereMarker: ReturnType<MapView['Markers']['add']> | undefined;
@@ -282,7 +285,6 @@ async function routeTo(from: Start['target'] | Coordinate | Store['space'], to: 
 // ---------- several stores: the route built from a search ----------
 async function openTrip() {
   if (!start || !tripCandidates) return;
-  const my = ++token;
   clearRoute();
   returning = false;
   show('trip');
@@ -297,8 +299,23 @@ async function openTrip() {
     $('trip-summary').textContent = 'These stores cannot be combined into one route on this level.';
     return;
   }
-  stops = plan.stops;
+  customised = false;
+  track('category_route_opened', { label: plan.label, stops: plan.stops.map((s) => s.name), matches: plan.total });
+  await buildTrip(plan.stops);
+}
+
+/**
+ * Builds (or rebuilds) the route for stops in the given order: legs, step-by-step and the list the
+ * visitor can edit. Called again every time the visitor reverses, drops or moves a stop.
+ */
+async function buildTrip(order: Store[]) {
+  if (!start || !plan) return;
+  const my = ++token;
+  clearRoute();
+  show('trip');
+  stops = order;
   markStops();
+  $<HTMLButtonElement>('trip-go').disabled = true;
 
   // One request for all the legs, in the chosen order. If the SDK cannot chain them, build each leg.
   let result = await safely(() => mapData.getDirectionsMultiDestination(start!.target, stops.map((s) => s.space)));
@@ -342,18 +359,64 @@ async function openTrip() {
   });
   guidance = { steps: all, distance, minutes: walkMinutes(distance), passing: [] };
 
+  // Compare with the shortest order for these same stops, so a change shows its cost.
+  const best = shortestOrder(mapData, start, stops);
+  const extra = walkMinutes(orderCost(mapData, start, stops)) - walkMinutes(best.metres);
+  const orderNote = !customised ? `shortest order from ${start.short}` : extra <= 0 ? 'your order, about the same time as the shortest' : `your order, +${extra} min vs shortest`;
+  $('trip-summary').innerHTML = `<b>${guidance.minutes} min walk</b> · ${fmtDistance(distance)} · ${stops.length} stops, ${escapeHtml(orderNote)}`;
+
   const legMinutes = legs.map((l) => walkMinutes(l.distance));
-  $('trip-summary').innerHTML = `<b>${guidance.minutes} min walk</b> · ${fmtDistance(distance)} · ${stops.length} stops, shortest order from ${escapeHtml(start.short)}`;
   $('trip-stops').innerHTML = stops
-    .map((s, i) => `<li>${logo(s)}<span class="r-main"><b>${escapeHtml(s.name)}</b><small>${escapeHtml(s.category)}</small></span><span class="leg">${legMinutes[i]} min</span></li>`)
+    .map((s, i) => {
+      const name = escapeHtml(s.name);
+      return `<li>${logo(s)}<span class="r-main"><b>${name}</b><small>${escapeHtml(s.category)} · ${legMinutes[i]} min</small></span>
+      <span class="stop-tools">
+        <button type="button" data-move="${i}" data-dir="-1" aria-label="Move ${name} up" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" data-move="${i}" data-dir="1" aria-label="Move ${name} down" ${i === stops.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" data-remove="${i}" aria-label="Remove ${name}">✕</button>
+      </span></li>`;
+    })
     .join('');
+  $('trip-reset').hidden = !customised || extra <= 0;
   const notes: string[] = [];
-  if (plan.total > stops.length) notes.push(`Showing the ${stops.length} ${plan.ranked ? 'best matches' : 'closest'} of ${plan.total} stores.`);
+  if (plan.total > plan.stops.length) notes.push(`Showing the ${plan.stops.length} ${plan.ranked ? 'best matches' : 'closest'} of ${plan.total} stores.`);
   if (plan.skipped.length) notes.push(`Not included (no walking route in the map data): ${plan.skipped.map((s) => s.name).join(', ')}.`);
   $('trip-note').textContent = notes.join(' ');
   $<HTMLButtonElement>('trip-go').disabled = false;
   drawRoute();
   void focus(mainLevelPath(), { duration: 700 });
+}
+
+/** The visitor's edits. Each one is also an event: what people drop or reorder says what they want. */
+function editTrip(action: 'reverse' | 'reset' | 'remove' | 'move', index = 0, dir = 0) {
+  if (!start || !plan || stops.length < 2) return;
+  let order = [...stops];
+  const label = plan.label;
+  if (action === 'reverse') {
+    order.reverse();
+    customised = true;
+    track('route_reversed', { label });
+  } else if (action === 'reset') {
+    order = shortestOrder(mapData, start, order).stops;
+    customised = false;
+    track('route_reset_to_shortest', { label });
+  } else if (action === 'move') {
+    const to = index + dir;
+    if (to < 0 || to >= order.length) return;
+    [order[index], order[to]] = [order[to], order[index]];
+    customised = true;
+    track('stop_moved', { label, store: order[to].name, from: index + 1, to: to + 1 });
+  } else {
+    const [removed] = order.splice(index, 1);
+    track('stop_removed', { label, store: removed.name, position: index + 1, remaining: order.length });
+    if (order.length === 1) {
+      void selectStore(order[0]);
+      return;
+    }
+    // Untouched routes stay optimal; a route the visitor arranged keeps their order.
+    if (!customised) order = shortestOrder(mapData, start, order).stops;
+  }
+  void buildTrip(order);
 }
 
 // ---------- map drawing ----------
@@ -510,7 +573,7 @@ const ARROWS: Record<StepKind, string> = {
 function goBack() {
   if (view === 'steps' && !returning && multi()) {
     resetCamera();
-    void openTrip();
+    void buildTrip([...stops]);
   } else if (view === 'steps' && !returning && stops.length === 1) {
     resetCamera();
     void selectStore(stops[0]);
@@ -534,6 +597,10 @@ function bind() {
     } else if (t.dataset.step) {
       stepIndex = Number(t.dataset.step);
       renderStep();
+    } else if (t.dataset.move) {
+      editTrip('move', Number(t.dataset.move), Number(t.dataset.dir));
+    } else if (t.dataset.remove) {
+      editTrip('remove', Number(t.dataset.remove));
     } else if (t.dataset.back !== undefined) {
       goBack();
     }
@@ -543,7 +610,12 @@ function bind() {
     show('park');
   });
   $('trip-bar').addEventListener('click', () => void openTrip());
-  $('trip-go').addEventListener('click', startSteps);
+  $('trip-go').addEventListener('click', () => {
+    if (plan) track('category_route_started', { label: plan.label, stops: stops.map((s) => s.name), customised });
+    startSteps();
+  });
+  $('trip-reverse').addEventListener('click', () => editTrip('reverse'));
+  $('trip-reset').addEventListener('click', () => editTrip('reset'));
   $('go').addEventListener('click', startSteps);
   $('prev').addEventListener('click', () => {
     stepIndex = Math.max(0, stepIndex - 1);
@@ -587,7 +659,7 @@ async function init() {
       labels.set(s.id, label);
     }
   }
-  if (import.meta.env.DEV) Object.assign(window, { mapData, mapView, venue, buildGuidance, planTrip });
+  if (import.meta.env.DEV) Object.assign(window, { mapData, mapView, venue, buildGuidance, planTrip, recentEvents });
 
   renderStarts();
   renderChips();

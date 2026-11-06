@@ -20,6 +20,8 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 | 12 | Desktop layout | 1280 × 800 | Side panel on the left, map on the right. Long routes can sit close to the right edge |
 | 13 | Storage blocked | Code review: every localStorage access is wrapped in try/catch | Should only forget the parking choice. **Not tested in a real private window** |
 | 15 | Route by need | "shoes" from Lot A (top 6 of 20 matches by relevance), Footwear chip from Lot B (6 closest of 7), arrival text per stop, "Next stop", back to the car from the last stop | Shortest order over map walking distances; 13 min / ~850 m for 6 stops; stores with no walking route are listed as not included |
+| 16 | Editing a route | Reverse, remove a stop, move a stop up/down, back to shortest; each logged as an event (`route_reversed`, `stop_removed`, `stop_moved`, `route_reset_to_shortest`) | Untouched routes re-optimise after a removal; a route the visitor arranged keeps their order and shows "+N min vs shortest" |
+| 17 | Search terms that build routes | 45 everyday terms run against Mappedin Search on the main level | Good groups: coffee (5), running (6), phone (6), jeans, gifts (6), hair (5), winter jackets (7), chocolate (3), lingerie (3), jewelry (3), tea, pizza, denim, yoga, sunglasses, makeup, frozen yogurt. Weak: "books", "toys", "bank", "dessert" return unrelated stores (fuzzy matches on descriptions); "electronics", "perfume", "skincare", "glasses" return nothing although the category exists |
 | 14 | Build | `npm run build` (tsc strict + Vite) | Clean |
 
 ## Known gaps (shipping with them, on purpose)
@@ -40,6 +42,7 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 | Store has no door node | Urban Kids | Router cannot reach it | Fallback to the closest corridor point |
 | Typo in tenant name | "Nordstorm" | Wrong name in search and labels | Display fix in `venue.ts` (`NAME_FIXES`) until the CMS is corrected |
 | Anchor entered far from its own doors | Lot A → Nordstrom goes through the mall (245 m) | Longer walk than needed if Nordstrom has an exterior door | None; confirm exterior doors with the customer |
+| Thin or missing search tags | e.g. "bank" does not find RBC RoyalBank; "perfume", "skincare" find nothing | Category routes and searches miss stores; weak terms build odd routes | None in code: tag every tenant in the CMS (products, services, synonyms) |
 | Some tenants have no logo | e.g. Starbucks | Initials instead of a logo | Initials fallback |
 
 ## Before handing it to the customer

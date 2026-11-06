@@ -8,37 +8,38 @@ export const MAX_STOPS = 6;
  * A multi-stop route built from what the visitor searched for ("shoes" → every shoe store).
  * The order is the shortest walk from where they are, found by trying every order: with six stops
  * that is 720 orders over walking distances from the map graph, so it is exact, not a heuristic.
+ * The visitor can then reverse it, drop stops or move them; those choices are signals too.
  */
 export type TripPlan = { label: string; stops: Store[]; metres: number; total: number; skipped: Store[]; ranked: boolean };
 
 type Target = Start['target'] | Store['space'];
 
-/**
- * `ranked`: candidates come from a text search, already in relevance order, so the best matches are
- * kept. Otherwise (a category) every candidate is equally relevant and the closest ones are kept.
- */
-export function planTrip(mapData: MapData, from: Start, label: string, candidates: Store[], ranked: boolean): TripPlan | undefined {
-  // Only storefronts this release can route end to end: main level, reachable from the start.
-  const dist = (a: Target, b: Target) => {
-    try {
-      const d = mapData.getDistance(a, b);
-      return Number.isFinite(d) && d > 0 ? d : Infinity;
-    } catch {
-      return Infinity;
-    }
-  };
-  const main = candidates.filter((s) => s.mainLevel && s.location.type === 'tenant');
-  const reachable = main.filter((s) => dist(from.target, s.space) < Infinity);
-  const skipped = main.filter((s) => !reachable.includes(s));
-  if (reachable.length < 2) return undefined;
+/** Walking distance over the map graph, in metres; Infinity when there is no walkable path. */
+export function walkDistance(mapData: MapData, a: Target, b: Target) {
+  try {
+    const d = mapData.getDistance(a, b);
+    return Number.isFinite(d) && d > 0 ? d : Infinity;
+  } catch {
+    return Infinity;
+  }
+}
 
-  // Too many matches: keep the best (or closest) ones and say so, instead of a 40-minute walk.
-  const pool = ranked ? reachable : [...reachable].sort((a, b) => dist(from.target, a.space) - dist(from.target, b.space));
-  const picked = pool.slice(0, MAX_STOPS);
+/** Metres to walk the stops in the given order, starting from the visitor's parking area. */
+export function orderCost(mapData: MapData, from: Start, stops: Store[]) {
+  let total = 0;
+  let prev: Target = from.target;
+  for (const s of stops) {
+    total += walkDistance(mapData, prev, s.space);
+    prev = s.space;
+  }
+  return total;
+}
 
-  const n = picked.length;
-  const fromStart = picked.map((s) => dist(from.target, s.space));
-  const between = picked.map((a) => picked.map((b) => (a === b ? 0 : dist(a.space, b.space))));
+/** The exact shortest order (open path from the start) for up to MAX_STOPS stops. */
+export function shortestOrder(mapData: MapData, from: Start, stops: Store[]): { stops: Store[]; metres: number } {
+  const n = stops.length;
+  const fromStart = stops.map((s) => walkDistance(mapData, from.target, s.space));
+  const between = stops.map((a) => stops.map((b) => (a === b ? 0 : walkDistance(mapData, a.space, b.space))));
 
   let best: number[] = [], bestCost = Infinity;
   const order: number[] = [];
@@ -61,7 +62,24 @@ export function planTrip(mapData: MapData, from: Start, label: string, candidate
     }
   };
   search(0);
-  if (!best.length) return undefined;
+  return best.length ? { stops: best.map((i) => stops[i]), metres: bestCost } : { stops, metres: orderCost(mapData, from, stops) };
+}
 
-  return { label, stops: best.map((i) => picked[i]), metres: bestCost, total: reachable.length, skipped, ranked };
+/**
+ * `ranked`: candidates come from a text search, already in relevance order, so the best matches are
+ * kept. Otherwise (a category) every candidate is equally relevant and the closest ones are kept.
+ */
+export function planTrip(mapData: MapData, from: Start, label: string, candidates: Store[], ranked: boolean): TripPlan | undefined {
+  // Only storefronts this release can route end to end: main level, reachable from the start.
+  const dist = (s: Store) => walkDistance(mapData, from.target, s.space);
+  const main = candidates.filter((s) => s.mainLevel && s.location.type === 'tenant');
+  const reachable = main.filter((s) => dist(s) < Infinity);
+  const skipped = main.filter((s) => !reachable.includes(s));
+  if (reachable.length < 2) return undefined;
+
+  // Too many matches: keep the best (or closest) ones and say so, instead of a 40-minute walk.
+  const pool = ranked ? reachable : [...reachable].sort((a, b) => dist(a) - dist(b));
+  const best = shortestOrder(mapData, from, pool.slice(0, MAX_STOPS));
+  if (!Number.isFinite(best.metres)) return undefined;
+  return { label, stops: best.stops, metres: best.metres, total: reachable.length, skipped, ranked };
 }
