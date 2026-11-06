@@ -1,0 +1,19 @@
+{
+  "name": "mappedin-greenfield-wayfinding",
+  "version": "0.1.0",
+  "description": "Parking-to-store wayfinding web app on Mappedin JS v6 (FDE build exercise)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mappedin/mappedin-js": "^6.30.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}

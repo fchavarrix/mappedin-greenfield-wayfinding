@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f3d2e" />
+    <title>Greenfield Mall · Find your way</title>
+    <meta name="description" content="Wayfinding from the parking lot to any store at Greenfield Mall, with steps you can follow. Built on Mappedin JS." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+  </head>
+  <body>
+    <div id="map" aria-label="Mall map"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">G</span>
+        <div>
+          <strong>Greenfield Mall</strong>
+          <small>Main Level</small>
+        </div>
+      </div>
+      <button id="here" class="here" type="button" hidden>
+        <span class="dot" aria-hidden="true"></span>
+        <span>You're at <b id="here-name"></b></span>
+        <span class="chev" aria-hidden="true">▾</span>
+      </button>
+    </header>
+
+    <section class="sheet" id="sheet" aria-live="polite">
+      <div class="grabber" aria-hidden="true"></div>
+
+      <!-- 1. Where did you park? (skipped when the visitor scans the QR at their parking entrance) -->
+      <div class="view" data-view="park" hidden>
+        <h1>Welcome to Greenfield Mall</h1>
+        <p class="lead">Where did you park? We'll guide you from there.</p>
+        <div class="starts" id="starts"></div>
+        <p class="hint">Tip: scan the QR code at your parking entrance and we'll know where you are.</p>
+      </div>
+
+      <!-- 2. Find a store -->
+      <div class="view" data-view="search" hidden>
+        <label class="search">
+          <span class="icon" aria-hidden="true">⌕</span>
+          <input id="q" type="search" placeholder="Search a store or “coffee”" autocomplete="off" enterkeyhint="search" />
+        </label>
+        <div class="chips" id="chips" role="group" aria-label="Categories"></div>
+        <ul class="results" id="results"></ul>
+      </div>
+
+      <!-- 3. Store card -->
+      <div class="view" data-view="store" hidden>
+        <button class="back" type="button" data-back>← All stores</button>
+        <div class="store-head">
+          <div class="logo" id="store-logo"></div>
+          <div>
+            <h2 id="store-name"></h2>
+            <p class="meta" id="store-meta"></p>
+          </div>
+        </div>
+        <p class="hours" id="store-hours"></p>
+        <p class="trip" id="store-trip">Finding the best route…</p>
+        <button class="primary" id="go" type="button" disabled>Start directions</button>
+      </div>
+
+      <!-- 4. Turn-by-turn -->
+      <div class="view" data-view="steps" hidden>
+        <div class="step-top">
+          <button class="back" type="button" data-back>← Change store</button>
+          <span class="progress" id="progress"></span>
+        </div>
+        <div class="current" id="current">
+          <div class="arrow" id="arrow" aria-hidden="true"></div>
+          <div>
+            <p class="step-text" id="step-text"></p>
+            <p class="step-detail" id="step-detail"></p>
+          </div>
+        </div>
+        <div class="nav">
+          <button type="button" id="prev">Back</button>
+          <button type="button" class="primary" id="next">Next</button>
+        </div>
+        <details class="all">
+          <summary>All steps · <span id="summary"></span></summary>
+          <ol id="steps"></ol>
+        </details>
+      </div>
+
+      <p class="credit">Map data: Mappedin demo venue · Built on Mappedin JS</p>
+    </section>
+
+    <div class="loading" id="loading">Loading the mall map…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
