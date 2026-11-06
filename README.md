@@ -2,6 +2,8 @@
 
 A first working slice of a customer-facing wayfinding web app on **Mappedin JS v6**: a first-time visitor opens it at the parking entrance, finds a store and walks there with steps they can actually follow.
 
+- **Live:** https://greenfield-wayfinding-demo.atlas-lac.com/?from=lot-a (as if you scanned the QR at Parking Lot A). Best on a phone.
+
 Built for the Mappedin FDE build exercise (customer brief: *Greenfield Mall Group*, 3 properties, ~2.5M sq ft). Runs on Mappedin's public demo venue.
 
 ## The brief, in my words
