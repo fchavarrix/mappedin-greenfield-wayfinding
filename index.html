@@ -45,7 +45,18 @@
           <input id="q" type="search" placeholder="Search a store or “coffee”" autocomplete="off" enterkeyhint="search" />
         </label>
         <div class="chips" id="chips" role="group" aria-label="Categories"></div>
+        <button class="trip-bar" id="trip-bar" type="button" hidden></button>
         <ul class="results" id="results"></ul>
+      </div>
+
+      <!-- 2b. Multi-stop route built from a search or a category -->
+      <div class="view" data-view="trip" hidden>
+        <button class="back" type="button" data-back>← Back to results</button>
+        <h2 id="trip-title"></h2>
+        <p class="trip" id="trip-summary">Finding the shortest order…</p>
+        <ol class="stops" id="trip-stops"></ol>
+        <p class="hint" id="trip-note"></p>
+        <button class="primary" id="trip-go" type="button" disabled>Start route</button>
       </div>
 
       <!-- 3. Store card -->

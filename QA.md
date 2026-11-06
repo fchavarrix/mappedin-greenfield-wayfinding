@@ -19,6 +19,7 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 | 11 | Phone layout | 375 × 812 in a desktop browser with mobile emulation | Bottom sheet, camera keeps the route clear of the sheet, heading-up map in step mode. **Not yet tested on a physical phone** |
 | 12 | Desktop layout | 1280 × 800 | Side panel on the left, map on the right. Long routes can sit close to the right edge |
 | 13 | Storage blocked | Code review: every localStorage access is wrapped in try/catch | Should only forget the parking choice. **Not tested in a real private window** |
+| 15 | Route by need | "shoes" from Lot A (top 6 of 20 matches by relevance), Footwear chip from Lot B (6 closest of 7), arrival text per stop, "Next stop", back to the car from the last stop | Shortest order over map walking distances; 13 min / ~850 m for 6 stops; stores with no walking route are listed as not included |
 | 14 | Build | `npm run build` (tsc strict + Vite) | Clean |
 
 ## Known gaps (shipping with them, on purpose)
@@ -28,6 +29,7 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 - **Walking time** uses 1.1 m/s (a first-time visitor reading a phone). Not calibrated on site.
 - **Entrance names** come from the nearest anchor ("by Nordstrom"). The real door signage may differ.
 - **No accessibility routing toggle** (elevators only). The SDK supports it (`accessible: true`); left out because the main-level slice has no level changes.
+- **Route by need**: stops cannot be reordered or added by hand yet (planned); text search relevance comes from Mappedin Search, so a store whose description mentions the term can appear (e.g. Lululemon for "shoes").
 - **English only.**
 - **Opening hours** use the visitor's device clock and time zone.
 

@@ -25,8 +25,12 @@ export type Step = {
 
 export type Guidance = { steps: Step[]; distance: number; minutes: number; passing: Store[]; entrance?: string };
 
-/** `in`: parking → store (the brief). `out`: store → parking (the trip back to the car). */
-export type Trip = { from: string; to: string; direction: 'in' | 'out' };
+/**
+ * `in`: parking → store (the brief). `next`: store → store inside a multi-stop route. `out`: store →
+ * parking (the trip back to the car). `avoid`: stores that are stops of the same route, so they are
+ * not used as landmarks or as "you'll pass".
+ */
+export type Trip = { from: string; to: string; direction: 'in' | 'next' | 'out'; avoid?: string[] };
 
 // Local equirectangular projection: plenty for a few hundred metres.
 type XY = [number, number];
@@ -76,10 +80,11 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
   const path = directions.coordinates;
   const ref = path[0];
   const xy = (c: { latitude: number; longitude: number }) => toXY(c, ref);
-  const inbound = trip.direction === 'in';
+  const inbound = trip.direction !== 'out';
 
   // Stores that can serve as landmarks: on the main level, named, not the destination.
-  const landmarks = venue.stores.filter((s) => s.mainLevel && s.location.type === 'tenant' && s.id !== destination.id);
+  const avoid = new Set([destination.id, ...(trip.avoid ?? [])]);
+  const landmarks = venue.stores.filter((s) => s.mainLevel && s.location.type === 'tenant' && !avoid.has(s.id));
   const centre = new Map(landmarks.map((s) => [s.id, xy(s.space.center)]));
 
   const nearestStore = (c: Coordinate, max: number, exclude: Set<string>) => {
@@ -97,7 +102,8 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
   // Where the route crosses the building's edge, named after the closest anchor so it matches the
   // signage. Inbound that is the first entrance on the path; outbound, the last one.
   let entrance: { index: number; label: string } | undefined;
-  for (const e of venue.entrances) {
+  // Store to store inside the mall: no building edge to cross.
+  for (const e of trip.direction === 'next' ? [] : venue.entrances) {
     const ec = xy(e.center);
     const near = (c: Coordinate) => {
       const p = xy(c);
@@ -180,7 +186,12 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
       text = `Walk to the mall entrance ${entrance.label}`;
       detail = `About ${fmtDistance(distance)} from ${trip.from}. Look for the ${sign} sign.`;
     } else if (type === 'Departure') {
-      text = inbound ? `Leave ${trip.from} and head into the mall` : `Leave ${trip.from} and head back to ${trip.to}`;
+      text =
+        trip.direction === 'in'
+          ? `Leave ${trip.from} and head into the mall`
+          : trip.direction === 'next'
+            ? `Leave ${trip.from} and head to ${trip.to}`
+            : `Leave ${trip.from} and head back to ${trip.to}`;
       detail = `Walk ${fmtDistance(distance)}. ${passText}`;
     } else if (type === 'Entrance' && inbound) {
       text = 'Go inside and walk straight ahead';
