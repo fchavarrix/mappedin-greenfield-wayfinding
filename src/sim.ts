@@ -43,6 +43,29 @@ function rng(seed: number) {
   };
 }
 
+/** Why a search found nothing, and which team acts on it. */
+export type MissReason = 'tenant' | 'tag' | 'service';
+export type MissedSearch = { term: string; count: number; reason: MissReason; note: string };
+
+/**
+ * Terms checked against Mappedin Search on this venue (all levels) that return no store at all.
+ * The terms and the reasons are real; the volumes are simulated.
+ */
+const MISSED: { term: string; share: number; reason: MissReason; note: string }[] = [
+  { term: 'cinema', share: 0.014, reason: 'tenant', note: 'No cinema in the mall' },
+  { term: 'grocery', share: 0.009, reason: 'tenant', note: 'No grocery store' },
+  { term: 'eyeglasses', share: 0.008, reason: 'tag', note: 'Lenscrafters exists but is not tagged for it' },
+  { term: 'stroller', share: 0.006, reason: 'service', note: 'Stroller rental or parking: Guest Services info' },
+  { term: 'tailor', share: 0.005, reason: 'tenant', note: 'No alterations service' },
+  { term: 'bookstore', share: 0.005, reason: 'tenant', note: 'No bookstore' },
+  { term: 'halal', share: 0.004, reason: 'tag', note: 'Restaurants do not say whether they serve it' },
+  { term: 'optician', share: 0.004, reason: 'tag', note: 'Lenscrafters exists but is not tagged for it' },
+  { term: 'wheelchair', share: 0.004, reason: 'service', note: 'Accessibility services not in the directory' },
+  { term: 'dentist', share: 0.003, reason: 'tenant', note: 'No dental clinic' },
+  { term: 'arcade', share: 0.003, reason: 'tenant', note: 'No arcade or play area' },
+  { term: 'supermarket', share: 0.003, reason: 'tenant', note: 'No supermarket' },
+];
+
 export type TenantStats = {
   store: Store;
   exposure: number; // times on someone's route (30 days, scaled)
@@ -62,7 +85,7 @@ export type SimResult = {
   arrivalRate: number;
   returnRate: number;
   byEntrance: { id: string; name: string; sessions: number }[];
-  zeroSearches: { term: string; count: number }[];
+  zeroSearches: MissedSearch[];
   tenants: TenantStats[];
   pareto: { topShare: number; topCount: number; exposureShare: number };
   hottest: string[];
@@ -230,13 +253,7 @@ export async function simulate(mapData: MapData, venue: Venue, onProgress?: (don
     arrivalRate: routed ? completed / routed : 0,
     returnRate: 0.24,
     byEntrance: venue.starts.map((s) => ({ id: s.id, name: s.name, sessions: Math.round((entranceCount.get(s.id) ?? 0) * k) })),
-    // Real gaps found while testing Mappedin Search on this venue; volumes simulated.
-    zeroSearches: [
-      { term: 'perfume', count: Math.round(sessions * 0.011) },
-      { term: 'skincare', count: Math.round(sessions * 0.008) },
-      { term: 'glasses', count: Math.round(sessions * 0.006) },
-      { term: 'electronics', count: Math.round(sessions * 0.005) },
-    ],
+    zeroSearches: MISSED.map((m) => ({ term: m.term, count: Math.round(sessions * m.share), reason: m.reason, note: m.note })),
     tenants: tenantsOut,
     pareto: { topShare: 0.2, topCount, exposureShare: topExposure / totalExposure },
     hottest: byExposure.slice(0, 3).map((t) => t.store.name),

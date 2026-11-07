@@ -1,6 +1,6 @@
 import type { MapData, MapView } from '@mappedin/mappedin-js';
 import type { Store, Venue } from './venue';
-import { ASSUMPTIONS, simulate, type SimResult, type TenantStats } from './sim';
+import { ASSUMPTIONS, simulate, type MissReason, type SimResult, type TenantStats } from './sim';
 import { onEvent, recentEvents, type AppEvent } from './events';
 
 /**
@@ -30,7 +30,10 @@ export async function startOperator(mapData: MapData, mapView: MapView, venue: V
   panel.hidden = false;
   bindTabs();
   renderFeed();
-  onEvent(() => renderFeed());
+  onEvent((e) => {
+    renderFeed();
+    if (e.name === 'search' && e.props.zero && result) renderMissing(String(e.props.term));
+  });
 
   $('ops-overview').innerHTML = '<p class="ops-loading">Routing 360 simulated visits on the real map…</p>';
   result = await simulate(mapData, venue, (done, total) => {
@@ -40,6 +43,7 @@ export async function startOperator(mapData: MapData, mapView: MapView, venue: V
   paintMap(mapView);
   if (import.meta.env.DEV) Object.assign(window, { opsResult: result });
   renderOverview();
+  renderMissing();
   renderTenants();
   renderLearning();
   renderAssumptions();
@@ -115,9 +119,56 @@ function renderOverview() {
     ${r.byEntrance.map((e) => `<div class="hbar"><span>${esc(e.name)}</span><i style="width:${(e.sessions / maxEntrance) * 100}%"></i><b>${fmt(e.sessions)}</b></div>`).join('')}
     <p class="hint">From QR scans at each parking entrance: tells you where to reinforce signage.</p>
 
-    <h3>Searches with no result</h3>
-    ${r.zeroSearches.map((z) => `<div class="hbar"><span>“${esc(z.term)}”</span><i class="miss" style="width:${(z.count / r.zeroSearches[0].count) * 100}%"></i><b>${fmt(z.count)}</b></div>`).join('')}
-    <p class="hint">Real gaps found in this venue's search tags. Either a missing tenant (a leasing opportunity) or a missing tag (a content fix).</p>`;
+    <h3>What visitors look for and don't find</h3>
+    <div id="ops-missing"></div>`;
+}
+
+const REASON: Record<MissReason | 'new', { label: string; team: string }> = {
+  tenant: { label: 'Not in the mall', team: 'Leasing' },
+  tag: { label: 'Store exists, tag missing', team: 'Content' },
+  service: { label: 'Service info missing', team: 'Operations' },
+  new: { label: 'New, to classify', team: 'Review' },
+};
+
+/**
+ * Searches that found nothing: the simulated month plus every real one from the visitor app,
+ * added live. A term nobody has classified yet shows up as "new".
+ */
+function renderMissing(flash?: string) {
+  const el = document.getElementById('ops-missing');
+  if (!el || !result) return;
+  const live = new Map<string, number>();
+  for (const e of recentEvents()) {
+    if (e.name !== 'search' || !e.props.zero) continue;
+    const term = String(e.props.term).toLowerCase();
+    live.set(term, (live.get(term) ?? 0) + 1);
+  }
+  const rows: { term: string; count: number; live: number; reason: MissReason | 'new'; note: string }[] = result.zeroSearches.map((z) => ({
+    ...z,
+    live: live.get(z.term) ?? 0,
+    count: z.count + (live.get(z.term) ?? 0),
+  }));
+  for (const [term, n] of live) {
+    if (!rows.some((r) => r.term === term)) rows.push({ term, count: n, live: n, reason: 'new', note: 'Searched in the visitor app just now' });
+  }
+  rows.sort((a, b) => b.live - a.live || b.count - a.count);
+  const max = Math.max(...rows.map((r) => r.count), 1);
+  const total = rows.reduce((a, r) => a + r.count, 0);
+  const byTeam = (['tenant', 'tag', 'service'] as const).map((k) => `${REASON[k].team} ${fmt(rows.filter((r) => r.reason === k).reduce((a, r) => a + r.count, 0))}`);
+  el.innerHTML = `
+    <p class="lead-in"><b>${fmt(total)} searches found nothing</b> this month · ${byTeam.join(' · ')}</p>
+    ${rows
+      .slice(0, 10)
+      .map(
+        (r) => `<div class="miss-row${r.term === flash ? ' flash' : ''}">
+        <span class="term">“${esc(r.term)}”${r.live ? `<em class="live-badge">+${r.live} live</em>` : ''}</span>
+        <i class="bar" style="width:${(r.count / max) * 100}%"></i>
+        <b>${fmt(r.count)}</b>
+        <small><span class="reason reason-${r.reason}">${REASON[r.reason].label}</span> ${esc(r.note)}</small>
+      </div>`,
+      )
+      .join('')}
+    <p class="hint">Terms and reasons are real (checked against Mappedin Search on this venue); monthly volumes are simulated. Each row goes to a team: a missing tenant is a leasing lead, a missing tag is a content fix, missing service info goes to Guest Services.</p>`;
 }
 
 function renderTenants() {
@@ -222,10 +273,13 @@ const LABELS: Record<string, string> = {
   route_reset_to_shortest: 'Back to shortest order',
 };
 
+const ENTRANCE: Record<string, string> = { 'lot-a': 'Parking Lot A', 'lot-b': 'Parking Lot B', garage: 'the Parking Garage' };
+
 function describe(e: AppEvent) {
   const p = e.props;
+  const entrance = p.entrance ? ENTRANCE[String(p.entrance)] ?? p.entrance : undefined;
   const detail =
-    p.store ?? (p.term ? `“${p.term}” (${p.results} found)` : undefined) ?? p.entrance ?? (p.label ? `“${p.label}”` : undefined) ?? (p.kind ? `${p.kind}, ${p.stops} stop(s)` : '');
+    p.store ?? (p.term ? `“${p.term}” (${p.results} found)` : undefined) ?? entrance ?? (p.label ? `“${p.label}”` : undefined) ?? (p.kind ? `${p.kind}, ${p.stops} stop(s)` : '');
   const extra =
     e.name === 'route_abandoned'
       ? `${p.step} of ${p.of}`
@@ -241,7 +295,7 @@ function renderFeed() {
   const el = $('ops-feed');
   const list = recentEvents().slice(-8).reverse();
   el.innerHTML = list.length
-    ? list.map((e) => `<li><time>${new Date(e.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</time>${describe(e)}</li>`).join('')
+    ? list.map((e) => `<li${e.name === 'search' && e.props.zero ? ' class="miss"' : ''}><time>${new Date(e.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</time>${describe(e)}</li>`).join('')
     : '<li class="empty">Open the visitor app in another tab and use it: events appear here.</li>';
 }
 

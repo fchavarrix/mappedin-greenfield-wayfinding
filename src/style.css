@@ -261,3 +261,18 @@ body.operator .sheet, body.operator #here { display: none !important; }
 .assume th { text-align: left; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); padding: 6px 4px; }
 .assume td { vertical-align: top; border-bottom: 1px solid var(--line); padding: 7px 4px; }
 .assume td small { display: block; color: var(--muted); font-size: 11px; }
+
+.miss-row { display: grid; grid-template-columns: 1fr 64px; grid-template-areas: 'term n' 'bar bar' 'why why'; gap: 2px 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.miss-row .term { grid-area: term; font-size: 13px; font-weight: 600; }
+.miss-row b { grid-area: n; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.miss-row .bar { grid-area: bar; display: block; height: 6px; border-radius: 3px; background: #c0392b; }
+.miss-row small { grid-area: why; font-size: 11.5px; color: var(--muted); }
+.reason { font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-right: 4px; }
+.reason-tenant { background: #e8f0fe; color: #1a4fa8; }
+.reason-tag { background: #fff1d6; color: #7a4b00; }
+.reason-service { background: #e3f4ec; color: #146c48; }
+.reason-new { background: #fde4e1; color: #a12a1c; }
+.live-badge { font-style: normal; font-size: 11px; font-weight: 700; color: #fff; background: #e4572e; border-radius: 999px; padding: 1px 7px; margin-left: 6px; }
+.miss-row.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: #ffe9a8; } to { background: transparent; } }
+.feed li.miss { color: #a12a1c; }
