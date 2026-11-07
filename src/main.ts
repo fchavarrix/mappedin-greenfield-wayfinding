@@ -12,7 +12,7 @@ import '@mappedin/mappedin-js/lib/index.css';
 import './style.css';
 import { hoursToday, loadVenue, type Start, type Store, type Venue } from './venue';
 import { buildGuidance, fmtDistance, metres, walkMinutes, type Guidance, type Step, type StepKind } from './guidance';
-import { MAX_STOPS, orderCost, planTrip, shortestOrder, type TripPlan } from './trip';
+import { MAX_STOPS, orderCost, planTrip, shortestOrder, walkDistance, type TripPlan } from './trip';
 import { recentEvents, track } from './events';
 import { startOperator } from './operator';
 
@@ -50,6 +50,14 @@ let tripCandidates: { label: string; stores: Store[]; ranked: boolean } | undefi
 let plan: TripPlan | undefined;
 /** True once the visitor reorders the route by hand (their order is kept on later edits). */
 let customised = false;
+/** Every storefront that matched the search and can be routed: the pool the visitor can add from. */
+let tripPool: Store[] = [];
+/**
+ * The visitor's own version of each route by need ("coffee" from Lot A), kept for the session so
+ * going back to the results and reopening the route keeps the stores they dropped, added or moved.
+ */
+const savedTrips = new Map<string, { ids: string[]; customised: boolean }>();
+const tripKey = () => (start && plan ? `${start.id}|${plan.label.toLowerCase()}` : '');
 let view: View = 'park';
 let token = 0;
 let hereMarker: ReturnType<MapView['Markers']['add']> | undefined;
@@ -310,10 +318,31 @@ async function openTrip() {
     $('trip-summary').textContent = 'These stores cannot be combined into one route on this level.';
     return;
   }
+  const from = start;
+  tripPool = tripCandidates.stores.filter(
+    (s) => s.mainLevel && s.location.type === 'tenant' && walkDistance(mapData, from.target, s.space) < Infinity,
+  );
+
+  // If the visitor already shaped this route, reopen their version, not the suggestion.
+  const saved = savedTrips.get(tripKey());
+  const mine = saved?.ids.map((id) => tripPool.find((s) => s.id === id)).filter((s): s is Store => !!s);
+  if (saved && mine && mine.length >= 2) {
+    customised = saved.customised;
+    track('category_route_reopened', { label: plan.label, stops: mine.map((s) => s.name) });
+    await buildTrip(mine);
+    return;
+  }
   customised = false;
   track('category_route_opened', { label: plan.label, stops: plan.stops.map((s) => s.name), matches: plan.total });
   await buildTrip(plan.stops);
 }
+
+/** True when the stops are not the suggested ones (some dropped or added), whatever their order. */
+const changedStops = () => {
+  if (!plan) return false;
+  const ids = (list: Store[]) => list.map((s) => s.id).sort().join();
+  return ids(plan.stops) !== ids(stops);
+};
 
 /**
  * Builds (or rebuilds) the route for stops in the given order: legs, step-by-step and the list the
@@ -382,13 +411,28 @@ async function buildTrip(order: Store[]) {
       const name = escapeHtml(s.name);
       return `<li>${logo(s)}<span class="r-main"><b>${name}</b><small>${escapeHtml(s.category)} · ${legMinutes[i]} min</small></span>
       <span class="stop-tools">
-        <button type="button" data-move="${i}" data-dir="-1" aria-label="Move ${name} up" ${i === 0 ? 'disabled' : ''}>↑</button>
-        <button type="button" data-move="${i}" data-dir="1" aria-label="Move ${name} down" ${i === stops.length - 1 ? 'disabled' : ''}>↓</button>
+        ${i > 0 ? `<button type="button" data-move="${i}" data-dir="-1" aria-label="Move ${name} up">↑</button>` : '<span class="gap"></span>'}
+        ${i < stops.length - 1 ? `<button type="button" data-move="${i}" data-dir="1" aria-label="Move ${name} down">↓</button>` : '<span class="gap"></span>'}
         <button type="button" data-remove="${i}" aria-label="Remove ${name}">✕</button>
       </span></li>`;
     })
     .join('');
   $('trip-reset').hidden = !customised || extra <= 0;
+  $('trip-suggested').hidden = !changedStops() && !customised;
+
+  // Other stores that matched: the visitor can add them, up to the same limit as the suggestion.
+  const rest = tripPool.filter((s) => !stops.some((x) => x.id === s.id));
+  const full = stops.length >= MAX_STOPS;
+  $('trip-add-title').textContent = rest.length ? `Add a “${plan.label}” store${full ? ` (max ${MAX_STOPS} stops, remove one first)` : ''}` : '';
+  $('trip-add').innerHTML = rest
+    .map((s) => {
+      const name = escapeHtml(s.name);
+      return `<li>${logo(s)}<span class="r-main"><b>${name}</b><small>${escapeHtml(s.category)}</small></span>
+      <button type="button" class="add-btn" data-add="${escapeHtml(s.id)}" aria-label="Add ${name}" ${full ? 'disabled' : ''}>+ Add</button></li>`;
+    })
+    .join('');
+
+  savedTrips.set(tripKey(), { ids: stops.map((s) => s.id), customised });
   const notes: string[] = [];
   if (plan.total > plan.stops.length) notes.push(`Showing the ${plan.stops.length} ${plan.ranked ? 'best matches' : 'closest'} of ${plan.total} stores.`);
   if (plan.skipped.length) notes.push(`Not included (no walking route in the map data): ${plan.skipped.map((s) => s.name).join(', ')}.`);
@@ -399,11 +443,22 @@ async function buildTrip(order: Store[]) {
 }
 
 /** The visitor's edits. Each one is also an event: what people drop or reorder says what they want. */
-function editTrip(action: 'reverse' | 'reset' | 'remove' | 'move', index = 0, dir = 0) {
+function editTrip(action: 'reverse' | 'reset' | 'remove' | 'move' | 'add' | 'suggested', index = 0, dir = 0, id = '') {
   if (!start || !plan || stops.length < 2) return;
   let order = [...stops];
   const label = plan.label;
-  if (action === 'reverse') {
+  if (action === 'add') {
+    const s = tripPool.find((x) => x.id === id);
+    if (!s || order.length >= MAX_STOPS || order.some((x) => x.id === id)) return;
+    order.push(s);
+    // An untouched order stays the shortest; a route the visitor arranged gets the new store at the end.
+    if (!customised) order = shortestOrder(mapData, start, order).stops;
+    track('stop_added', { label, store: s.name, stops: order.length });
+  } else if (action === 'suggested') {
+    order = [...plan.stops];
+    customised = false;
+    track('route_reset_to_suggested', { label });
+  } else if (action === 'reverse') {
     order.reverse();
     customised = true;
     track('route_reversed', { label });
@@ -625,6 +680,8 @@ function bind() {
       editTrip('move', Number(t.dataset.move), Number(t.dataset.dir));
     } else if (t.dataset.remove) {
       editTrip('remove', Number(t.dataset.remove));
+    } else if (t.dataset.add) {
+      editTrip('add', 0, 0, t.dataset.add);
     } else if (t.dataset.back !== undefined) {
       goBack();
     }
@@ -640,6 +697,7 @@ function bind() {
   });
   $('trip-reverse').addEventListener('click', () => editTrip('reverse'));
   $('trip-reset').addEventListener('click', () => editTrip('reset'));
+  $('trip-suggested').addEventListener('click', () => editTrip('suggested'));
   $('go').addEventListener('click', startSteps);
   $('prev').addEventListener('click', () => {
     stepIndex = Math.max(0, stepIndex - 1);

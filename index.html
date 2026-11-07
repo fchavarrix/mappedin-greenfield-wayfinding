@@ -57,10 +57,14 @@
         <div class="trip-tools">
           <button type="button" id="trip-reverse">⇅ Reverse</button>
           <button type="button" id="trip-reset" hidden>↺ Shortest order</button>
+          <button type="button" id="trip-suggested" hidden>↺ Suggested stores</button>
         </div>
+        <p class="hint edit-hint">Use ↑ ↓ to change the order and ✕ to drop a store.</p>
         <ol class="stops" id="trip-stops"></ol>
         <p class="hint" id="trip-note"></p>
         <button class="primary" id="trip-go" type="button" disabled>Start route</button>
+        <h3 class="add-title" id="trip-add-title"></h3>
+        <ul class="stops add-list" id="trip-add"></ul>
       </div>
 
       <!-- 3. Store card -->

@@ -271,6 +271,9 @@ const LABELS: Record<string, string> = {
   stop_removed: 'Dropped',
   stop_moved: 'Moved',
   route_reset_to_shortest: 'Back to shortest order',
+  stop_added: 'Added',
+  route_reset_to_suggested: 'Back to the suggested stores',
+  category_route_reopened: 'Reopened their own route:',
 };
 
 const ENTRANCE: Record<string, string> = { 'lot-a': 'Parking Lot A', 'lot-b': 'Parking Lot B', garage: 'the Parking Garage' };
