@@ -36,7 +36,7 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 - **Walking time** uses 1.1 m/s (a first-time visitor reading a phone). Not calibrated on site.
 - **Entrance names** come from the nearest anchor ("by Nordstrom"). The real door signage may differ.
 - **No accessibility routing toggle** (elevators only). The SDK supports it (`accessible: true`); left out because the main-level slice has no level changes.
-- **Route by need**: stops cannot be reordered or added by hand yet (planned); text search relevance comes from Mappedin Search, so a store whose description mentions the term can appear (e.g. Lululemon for "shoes").
+- **Route by need**: capped at 6 stops (exact order); edits are kept for the session only; text search relevance comes from Mappedin Search, so a store whose description mentions the term can appear (e.g. Lululemon for "shoes").
 - **English only.**
 - **Opening hours** use the visitor's device clock and time zone.
 
