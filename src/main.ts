@@ -156,7 +156,7 @@ let searchTimer: number | undefined;
 /** Logged once the visitor pauses typing, so "c", "co", "cof" do not count as three searches. */
 function trackSearch(term: string, results: number) {
   clearTimeout(searchTimer);
-  searchTimer = window.setTimeout(() => track('search', { term: term.toLowerCase(), results, zero: results === 0 }), 900);
+  searchTimer = window.setTimeout(() => track('search', { term: term.toLowerCase(), results, zero: results === 0, from: start?.id ?? 'unknown' }), 900);
 }
 async function renderResults() {
   const seq = ++searchSeq;
@@ -726,6 +726,20 @@ function bind() {
 async function init() {
   mapData = await getMapData({ ...MAP_OPTIONS, search: { enabled: true } });
   venue = loadVenue(mapData);
+  // Scripted QA over the venue data (QA.md): every route, the search audit and content gaps.
+  // It only needs the data, not the rendered map.
+  if (new URLSearchParams(location.search).get('view') === 'qa') {
+    const { runQa, renderQa } = await import('./qa');
+    const panel = document.createElement('div');
+    panel.className = 'qa-report';
+    panel.textContent = 'Running scripted QA on the venue data…';
+    document.body.append(panel);
+    const result = await runQa(mapData, venue, (t) => (panel.textContent = t));
+    renderQa(panel, result);
+    console.table(result.searches);
+    Object.assign(window, { qaResult: result });
+    return;
+  }
   mapView = await show3dMap($('map'), mapData, { initialFloor: venue.main });
   for (const s of venue.stores) {
     if (!s.mainLevel) continue;

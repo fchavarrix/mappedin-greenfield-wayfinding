@@ -286,3 +286,11 @@ body.operator .sheet, body.operator #here { display: none !important; }
 .miss-row.flash { animation: flash 1.6s ease-out; }
 @keyframes flash { from { background: #ffe9a8; } to { background: transparent; } }
 .feed li.miss { color: #a12a1c; }
+
+/* ---------- scripted QA report (?view=qa) ---------- */
+.qa-report {
+  position: fixed; inset: 0; z-index: 50; overflow: auto; background: #fff; padding: 24px; font-size: 13px; line-height: 1.45;
+}
+.qa-report h2 { margin: 0 0 12px; }
+.qa-report table { border-collapse: collapse; width: 100%; margin: 8px 0 20px; }
+.qa-report th, .qa-report td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
