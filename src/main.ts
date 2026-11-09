@@ -175,6 +175,22 @@ function renderChips() {
     .join('');
 }
 
+/**
+ * How lists of matching stores are shown. Relevance is Mappedin Search's score (or, for a category, the
+ * distance from the parking area); A-Z is for a visitor who knows the brand. The route by need always
+ * picks its stops by relevance, whatever the list shows.
+ */
+type SortBy = 'relevance' | 'az';
+let resultSort: SortBy = 'relevance';
+let addSort: SortBy = 'relevance';
+const byName = (a: Store, b: Store) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+/** Main level first (what this release routes end to end), then each group in the chosen order. */
+const sortStores = (list: Store[], by: SortBy) =>
+  by === 'az' ? [...list.filter((s) => s.mainLevel).sort(byName), ...list.filter((s) => !s.mainLevel).sort(byName)] : list;
+function renderSort(id: string, attr: string, by: SortBy) {
+  document.querySelectorAll<HTMLButtonElement>(`#${id} [${attr}]`).forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === by)));
+}
+
 let searchSeq = 0;
 let searchTimer: number | undefined;
 /** Logged once the visitor pauses typing, so "c", "co", "cof" do not count as three searches. */
@@ -200,8 +216,13 @@ async function renderResults() {
   }
   // Main level first: that is what this release routes end to end.
   list = [...list.filter((s) => s.mainLevel), ...list.filter((s) => !s.mainLevel)];
+  // The route by need is built from the relevance order, before any re-sorting for display.
   renderTripBar(term.length >= 2 ? term : category, list);
   if (term.length >= 2) trackSearch(term, list.length);
+  // Sorting only matters for a search; the directory (no search) is already A-Z.
+  $('sort').hidden = term.length < 2 || list.length < 2;
+  renderSort('sort', 'data-sort', resultSort);
+  if (term.length >= 2) list = sortStores(list, resultSort);
 
   const items = list.slice(0, 80).map((s) => {
     const h = hoursToday(s);
@@ -444,17 +465,7 @@ async function buildTrip(order: Store[]) {
   $('trip-reset').hidden = !customised || extra <= 0;
   $('trip-suggested').hidden = !changedStops() && !customised;
 
-  // Other stores that matched: the visitor can add them, up to the same limit as the suggestion.
-  const rest = tripPool.filter((s) => !stops.some((x) => x.id === s.id));
-  const full = stops.length >= MAX_STOPS;
-  $('trip-add-title').textContent = rest.length ? `Add a “${plan.label}” store${full ? ` (max ${MAX_STOPS} stops, remove one first)` : ''}` : '';
-  $('trip-add').innerHTML = rest
-    .map((s) => {
-      const name = escapeHtml(s.name);
-      return `<li>${logo(s)}<span class="r-main"><b>${name}</b><small>${escapeHtml(s.category)}</small></span>
-      <button type="button" class="add-btn" data-add="${escapeHtml(s.id)}" aria-label="Add ${name}" ${full ? 'disabled' : ''}>+ Add</button></li>`;
-    })
-    .join('');
+  renderAddList();
 
   savedTrips.set(tripKey(), { ids: stops.map((s) => s.id), customised });
   const notes: string[] = [];
@@ -464,6 +475,31 @@ async function buildTrip(order: Store[]) {
   $<HTMLButtonElement>('trip-go').disabled = false;
   drawRoute();
   void focus(mainLevelPath(), { duration: 700 });
+}
+
+/**
+ * Other stores that matched: the visitor can add them, up to the same limit as the suggestion.
+ * By relevance (a search) or by distance (a category) by default, or A-Z.
+ */
+function renderAddList() {
+  if (!plan || !start) return;
+  const from = start;
+  const rest = tripPool.filter((s) => !stops.some((x) => x.id === s.id));
+  const ordered =
+    addSort === 'az' ? [...rest].sort(byName) : plan.ranked ? rest : [...rest].sort((a, b) => walkDistance(mapData, from.target, a.space) - walkDistance(mapData, from.target, b.space));
+  const full = stops.length >= MAX_STOPS;
+  $('trip-add-title').textContent = rest.length ? `Add a “${plan.label}” store${full ? ` (max ${MAX_STOPS} stops, remove one first)` : ''}` : '';
+  $('trip-add-sort').hidden = rest.length < 2;
+  const first = document.querySelector<HTMLButtonElement>('#trip-add-sort [data-add-sort="relevance"]');
+  if (first) first.textContent = plan.ranked ? 'Relevance' : 'Closest';
+  renderSort('trip-add-sort', 'data-add-sort', addSort);
+  $('trip-add').innerHTML = ordered
+    .map((s) => {
+      const name = escapeHtml(s.name);
+      return `<li>${logo(s)}<span class="r-main"><b>${name}</b><small>${escapeHtml(s.category)}</small></span>
+      <button type="button" class="add-btn" data-add="${escapeHtml(s.id)}" aria-label="Add ${name}" ${full ? 'disabled' : ''}>+ Add</button></li>`;
+    })
+    .join('');
 }
 
 /** The visitor's edits. Each one is also an event: what people drop or reorder says what they want. */
@@ -728,6 +764,14 @@ function bind() {
       editTrip('remove', Number(t.dataset.remove));
     } else if (t.dataset.add) {
       editTrip('add', 0, 0, t.dataset.add);
+    } else if (t.dataset.sort) {
+      resultSort = t.dataset.sort as SortBy;
+      track('results_sorted', { by: resultSort, term: $<HTMLInputElement>('q').value.trim().toLowerCase() });
+      void renderResults();
+    } else if (t.dataset.addSort) {
+      addSort = t.dataset.addSort as SortBy;
+      track('add_list_sorted', { by: addSort, label: plan?.label ?? '' });
+      renderAddList();
     } else if (t.dataset.back !== undefined) {
       goBack();
     }

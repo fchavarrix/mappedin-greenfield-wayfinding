@@ -48,6 +48,11 @@
           <input id="q" type="search" placeholder="Search a store or “coffee”" autocomplete="off" enterkeyhint="search" />
         </label>
         <div class="chips" id="chips" role="group" aria-label="Categories"></div>
+        <div class="sort" id="sort" role="group" aria-label="Sort results" hidden>
+          <span>Sort</span>
+          <button type="button" data-sort="relevance" aria-pressed="true">Relevance</button>
+          <button type="button" data-sort="az" aria-pressed="false">A–Z</button>
+        </div>
         <button class="trip-bar" id="trip-bar" type="button" hidden></button>
         <ul class="results" id="results"></ul>
       </div>
@@ -67,6 +72,11 @@
         <p class="hint" id="trip-note"></p>
         <button class="primary" id="trip-go" type="button" disabled>Start route</button>
         <h3 class="add-title" id="trip-add-title"></h3>
+        <div class="sort" id="trip-add-sort" role="group" aria-label="Sort the other stores" hidden>
+          <span>Sort</span>
+          <button type="button" data-add-sort="relevance" aria-pressed="true">Relevance</button>
+          <button type="button" data-add-sort="az" aria-pressed="false">A–Z</button>
+        </div>
         <ul class="stops add-list" id="trip-add"></ul>
       </div>
 

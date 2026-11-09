@@ -106,6 +106,13 @@ h2 { font-size: 20px; margin: 0; }
   flex: none; border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 12px; font-size: 13px; white-space: nowrap;
 }
 .chips button[aria-pressed='true'] { background: var(--brand-ink); border-color: var(--brand-ink); color: #fff; }
+/* sort toggle: relevance or A-Z */
+.sort { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 12px; color: var(--muted); }
+.sort[hidden] { display: none; }
+.sort button {
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink, inherit); border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.sort button[aria-pressed='true'] { background: var(--brand-ink); border-color: var(--brand-ink); color: #fff; }
 .results { list-style: none; margin: 4px 0 0; padding: 0; }
 .results button {
   width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px 2px; border: 0; background: none;
