@@ -47,6 +47,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .here[hidden] { display: none; }
 .here .dot { width: 10px; height: 10px; border-radius: 50%; background: #4cc38a; box-shadow: 0 0 0 3px rgba(76, 195, 138, 0.35); flex: none; }
 .here .chev { opacity: 0.7; }
+/* seasonal chip (seasons.ts) */
+.season-chip {
+  flex: none; display: flex; align-items: center; gap: 8px; margin-left: 10px;
+  background: var(--bg); border-radius: 999px; padding: 6px 14px 6px 10px; box-shadow: var(--shadow);
+  border-left: 4px solid var(--season, #c8322f); font-size: 13px; line-height: 1.15;
+}
+.season-chip[hidden] { display: none; }
+.season-chip > span:first-child { font-size: 18px; }
+.season-chip b { display: block; font-size: 13px; }
+.season-chip small { display: block; color: var(--muted); font-size: 11px; }
+@media (max-width: 899px) {
+  /* On a phone the top bar is full: the chip sits just under it. */
+  .season-chip { position: fixed; top: calc(62px + env(safe-area-inset-top)); left: 12px; margin-left: 0; padding: 4px 12px 4px 8px; }
+}
+
 /* step-free route toggle */
 .step-free {
   margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px;

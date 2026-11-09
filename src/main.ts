@@ -16,6 +16,7 @@ import { MAX_STOPS, orderCost, planTrip, shortestOrder, walkDistance, type TripP
 import { recentEvents, track } from './events';
 import { startOperator } from './operator';
 import { decorate, type Decor } from './decor';
+import { activeSeason, applySeason, matchesEvent, type Season } from './seasons';
 
 // Mappedin's public demo venue and key (from the developer docs). A customer deployment swaps these
 // for the venue's own key through env vars; nothing else in the app is venue-specific.
@@ -69,6 +70,11 @@ const routeOptions = () => ({ accessible: stepFree });
 /** Map decoration (category tints, service icons, parking). `?decor=0` turns it off. */
 const DECOR = new URLSearchParams(location.search).get('decor') !== '0';
 let decor: Decor | undefined;
+/** Seasonal mode (operator config in seasons.ts): the season and its event as a destination. */
+let season: Season | undefined;
+let seasonEvent: Store | undefined;
+const isEvent = (s: Store) => s === seasonEvent;
+const baseColorOf = (s: Store) => (isEvent(s) && season ? season.entranceColor : decor?.baseColor(s) ?? 'initial');
 const tripKey = () => (start && plan ? `${start.id}|${plan.label.toLowerCase()}` : '');
 let view: View = 'park';
 let token = 0;
@@ -214,6 +220,10 @@ async function renderResults() {
   } else {
     list = venue.stores.filter((s) => s.location.type === 'tenant' && (!category || s.category === category));
   }
+  // The season's event goes first in the directory and in searches that name it ("santa", "halloween").
+  if (seasonEvent && season && ((term.length < 2 && !category) || matchesEvent(season, term))) {
+    list = [seasonEvent, ...list.filter((s) => s !== seasonEvent)];
+  }
   // Main level first: that is what this release routes end to end.
   list = [...list.filter((s) => s.mainLevel), ...list.filter((s) => !s.mainLevel)];
   // The route by need is built from the relevance order, before any re-sorting for display.
@@ -245,7 +255,8 @@ async function renderResults() {
 function renderTripBar(label: string | undefined, list: Store[]) {
   const bar = $<HTMLButtonElement>('trip-bar');
   const term = $<HTMLInputElement>('q').value.trim().toLowerCase();
-  const routable = list.filter((s) => s.mainLevel && s.location.type === 'tenant');
+  // The seasonal event is a destination, not a store to shop: it never joins a route by need.
+  const routable = list.filter((s) => s.mainLevel && s.location.type === 'tenant' && !isEvent(s));
   const brandSearch = routable.length > 0 && routable[0].name.toLowerCase() === term;
   if (!label || routable.length < 2 || brandSearch) {
     bar.hidden = true;
@@ -576,7 +587,7 @@ function clearRoute() {
   mapView.Navigation.clear();
   stopMarkers.forEach((m) => mapView.Markers.remove(m));
   stopMarkers = [];
-  stops.forEach((s) => mapView.updateState(s.space, { color: decor?.baseColor(s) ?? 'initial' }));
+  stops.forEach((s) => mapView.updateState(s.space, { color: baseColorOf(s) }));
   decor?.clearRouteOf(undefined);
   stops = [];
   legs = [];
@@ -857,6 +868,8 @@ async function init() {
   }
 
   if (DECOR) decor = decorate(mapData, mapView, venue);
+  season = activeSeason();
+  if (season) seasonEvent = applySeason(season, mapData, mapView, venue);
   stepFree = recallStepFree();
   $('step-free').hidden = false;
   renderStepFree();
