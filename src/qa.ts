@@ -1,18 +1,20 @@
 import type { MapData } from '@mappedin/mappedin-js';
 import { hoursToday, type Store, type Venue } from './venue';
-import { nameCheck } from './geometry';
+import { labelPoint, nameCheck } from './geometry';
+import { metres } from './guidance';
 
 /**
  * Scripted QA over the live venue data, the same checks that produced QA.md. Open `?view=qa`.
  * Clicking 408 routes and 85 searches by hand is not realistic, and data gaps (a store with no door,
  * a missing tag) are invisible on the map: they only show up when every case is run.
  *
- * Five checks:
+ * Six checks:
  * 1. Routing coverage: every parking area to every main-level store, through the SDK router.
  * 2. Search audit: everyday terms through Mappedin Search, sorted into buckets.
  * 3. Step-free routing: every parking area to every Upper Level store with `accessible: true`.
  * 4. Content completeness: what each tenant record is missing (logo, hours, description).
  * 5. Store names: whether each name lands inside its store (the map data's anchor vs. the app's point).
+ * 6. Names that collide: tenants sharing one space, and names under 4 m apart.
  *
  * The buckets in (2) are automatic. Whether a result is *misleading* ("bank" → a massage chair store)
  * is a human judgement: those terms keep the verdict of the Nov 6 review, and the report lists what each
@@ -145,8 +147,21 @@ export async function runQa(mapData: MapData, venue: Venue, onProgress: (text: s
     if (c.ours > 0) names.oursInside++;
     names.oursMin = Math.min(names.oursMin, c.ours);
   }
+  // 6. Map data that makes two names collide: tenants sharing one space, and names under 4 m apart.
+  const bySpace = new Map<string, string[]>();
+  for (const s of tenants) bySpace.set(s.space.id, [...(bySpace.get(s.space.id) ?? []), s.name]);
+  const shared = [...bySpace.values()].filter((v) => v.length > 1).map((v) => v.join(' + '));
+  const crowded: string[] = [];
+  for (let i = 0; i < tenants.length; i++) {
+    for (let j = i + 1; j < tenants.length; j++) {
+      const a = tenants[i], b = tenants[j];
+      if (a.space.id === b.space.id) continue;
+      const d = metres(labelPoint(a.space), labelPoint(b.space));
+      if (d < 4) crowded.push(`${a.name} / ${b.name} (${d.toFixed(1)} m)`);
+    }
+  }
 
-  return { tenants: tenants.length, routes, failed, unreachable, searches, drift, stepFree, upper: upperStores.length, content, names };
+  return { tenants: tenants.length, routes, failed, unreachable, searches, drift, stepFree, upper: upperStores.length, content, names, shared, crowded };
 }
 
 export function renderQa(el: HTMLElement, r: Awaited<ReturnType<typeof runQa>>) {
@@ -164,6 +179,9 @@ export function renderQa(el: HTMLElement, r: Awaited<ReturnType<typeof runQa>>) 
     (${r.names.outside.map(esc).join(', ') || 'none'}) and against a wall for ${r.names.onEdge.length} of ${r.names.checked}.
     The app places each name from the outline instead: ${r.names.oursInside} of ${r.names.checked} inside, the shallowest at
     ${Math.round(r.names.oursMin * 100)}% of the store's depth.</p>
+    <p><b>Names that collide:</b> tenants sharing one space in the map data: <b>${r.shared.map(esc).join(' · ') || 'none'}</b>
+    (one storefront, two names: a data question for the content team). Names under 4 m apart: ${r.crowded.map(esc).join(' · ') || 'none'}.
+    While a store is a stop, names under its pin are switched off.</p>
     <p><b>Search (${r.searches.length} terms, both levels):</b> route ${count('route')} · one place ${count('one place')} · upper level only ${count('upper only')} · nothing ${count('nothing')} · misleading ${count('misleading')} (human review, Nov 6).
     ${fails} of ${r.searches.length} (${Math.round((fails / r.searches.length) * 100)}%) find nothing or the wrong stores.</p>
     <p><b>Changed since the deck (Nov 6):</b> ${

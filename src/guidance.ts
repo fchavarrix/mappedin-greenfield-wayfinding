@@ -126,7 +126,10 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
 
   // Stores that can serve as landmarks: on the main level, named, not the destination.
   const avoid = new Set([destination.id, ...(trip.avoid ?? [])]);
-  const landmarks = venue.stores.filter((s) => s.mainLevel && s.location.type === 'tenant' && !avoid.has(s.id));
+  // Two tenants can share one space in the map data (Take Five Cafe and Excel Jewellers): the one
+  // sharing the destination's (or a stop's) unit is the same storefront, not a landmark or a neighbour.
+  const avoidSpaces = new Set(venue.stores.filter((s) => avoid.has(s.id)).map((s) => s.space.id));
+  const landmarks = venue.stores.filter((s) => s.mainLevel && s.location.type === 'tenant' && !avoid.has(s.id) && !avoidSpaces.has(s.space.id));
   // Distances are measured to the store's outline, not its centre: a visitor sees the storefront.
   // By centre, a small store set back from a corner beats the big one whose front is on it.
   const outline = new Map(landmarks.map((s) => [s.id, storeOutline(s).map(xy)]));

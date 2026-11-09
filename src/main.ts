@@ -659,12 +659,29 @@ function nameAt(s: Store) {
   return mapView.createCoordinate(p.latitude, p.longitude, s.floor);
 }
 
+/** Names under a stop's pin are switched off while it shows: the pin carries the store's logo. */
+let hiddenLabels: Store[] = [];
+/** Roughly half the pin's width on the map at the zoom used for a stop (76 px). */
+const PIN_CLEARANCE_M = 4;
+
 function markStops() {
+  showHiddenLabels();
   stops.forEach((s, i) => {
     mapView.updateState(s.space, { color: COLORS.selected });
     const num = multi() ? `<span class="num">${i + 1}</span>` : '';
     stopMarkers.push(mapView.Markers.add(nameAt(s), `<div class="pin">${logo(s)}${num}</div>`, { rank: 'always-visible' }));
   });
+  // The stop's own name, a tenant sharing its unit in the map data (Take Five Cafe / Excel Jewellers)
+  // and any name right under the pin would otherwise be drawn through it.
+  const under = (o: Store) =>
+    stops.some((s) => o.space.id === s.space.id || metres(labelPoint(o.space), labelPoint(s.space)) < PIN_CLEARANCE_M);
+  hiddenLabels = venue.stores.filter((o) => labels.has(o.id) && under(o));
+  for (const o of hiddenLabels) mapView.updateState(labels.get(o.id)!, { enabled: false });
+}
+
+function showHiddenLabels() {
+  for (const o of hiddenLabels) mapView.updateState(labels.get(o.id)!, { enabled: true });
+  hiddenLabels = [];
 }
 
 function clearRoute() {
@@ -672,6 +689,7 @@ function clearRoute() {
   mapView.Navigation.clear();
   stopMarkers.forEach((m) => mapView.Markers.remove(m));
   stopMarkers = [];
+  showHiddenLabels();
   stops.forEach((s) => mapView.updateState(s.space, { color: baseColorOf(s) }));
   decor?.clearRouteOf(undefined);
   stops = [];
