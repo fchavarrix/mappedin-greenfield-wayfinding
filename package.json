@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mappedin/3d-assets": "^0.0.12",
     "@mappedin/mappedin-js": "^6.30.0"
   },
   "devDependencies": {

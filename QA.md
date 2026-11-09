@@ -31,6 +31,7 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 | 24 | What stays human | "Misleading" (27 terms) is a review of the top results, kept in code as the Nov 6 verdict; one automatic bucket is overridden ("video games": the only main-level match is Naturalizer, a shoe store), and the override stops applying if the results change. Restrooms count as "one place" (nearest amenity) | The report flags any term whose bucket differs from the deck, so a content change shows up on the next run |
 | 25 | Step-free route, scripted | `?view=qa`: every parking area × every Upper Level store (111) with `accessible: true` = **333 routes** | Nov 8, 2026: **333 / 333 found, all by elevator only**; **202** of them take an escalator without the option. On the main level the option changes no route (408 checked) |
 | 26 | Step-free route, on screen | Lot A → Nespresso: toggle ♿ on the store card, start directions; toggle off again; reload; 375 × 812 | Off: "…then up to the Upper Level", last step "Take the escalator up". On: "…then the elevator up to the Upper Level", 180 m → 220 m, last step "Take the elevator up". The route redraws when toggled; the choice survives a reload; `step_free_toggled` is logged. On a phone the button shows only ♿ and the parking chip shortens to "Lot B" |
+| 27 | Map decoration | `src/decor.ts`, on by default, `?decor=0` turns it off. Category tints, service icons (elevators, escalators, restrooms, info), parking stalls, parked cars and trees in Lots A and B (Mappedin 3D assets: car, pine, plant), shadows `'auto'`, outdoor water hidden | Desktop and 375 × 812: a store goes back to its category tint after a route; cars within 3.5 m of the route hide while it is shown (Lot A → Apple); with ♿ on, elevator labels stay always visible and escalators fade. The three models add ~300 kB. **Not yet measured on a low-end phone**: if it stutters, `?decor=0` |
 | 14 | Build | `npm run build` (tsc strict + Vite) | Clean |
 
 ## Known gaps (shipping with them, on purpose)
@@ -53,6 +54,7 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 | Anchor entered far from its own doors | Lot A → Nordstrom goes through the mall (245 m) | Longer walk than needed if Nordstrom has an exterior door | None; confirm exterior doors with the customer |
 | Thin or missing search tags | e.g. "bank" does not find RBC RoyalBank; "eyeglasses" and "optician" find nothing although Lenscrafters exists | Category routes and searches miss stores; weak terms build odd routes | None in code: tag every tenant in the CMS (products, services, synonyms) |
 | Some tenants have no logo | e.g. Starbucks | Initials instead of a logo | Initials fallback |
+| Outdoor basemap water over a parking lot | OpenStreetMap water under Parking Lot B | A lake drawn across the lot | Water layers hidden in the outdoor style (`hideOutdoorWater`); confirm the site context with the customer |
 
 ## Before handing it to the customer
 

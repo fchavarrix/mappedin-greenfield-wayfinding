@@ -29,6 +29,7 @@ The real problem is not drawing a line on a map. It is that a first-time visitor
 - **Deep links**: `?from=<lot-a|lot-b|garage>` for the QR signs and `?to=<store>` for tenants to link to their storefront.
 - **Step-free route (♿ in the top bar)**: one tap keeps every route off stairs and escalators (the SDK's `accessible` option), remembered on the device. On the main level nothing changes; at the hand-off to the Upper Level the route goes to the elevator ("Take the elevator up…"). Checked over all 333 parking → Upper Level routes in the scripted QA.
 - **Graceful data gaps**: a store with no door in the map data still gets a route to the corridor in front of it. An upstairs store routes to the escalator (or the elevator, step-free) and hands off.
+- **A map that helps you read it** (`src/decor.ts`): soft tints by category, so a route by need reads as one group of colour; icons for elevators, escalators, restrooms and information, with elevators highlighted when the step-free route is on; parking lots with stall lines, parked cars (hidden where they would cover the route) and trees, using Mappedin's own 3D assets library. `?decor=0` turns it all off for low-end devices.
 - Phone-first layout (bottom sheet) and a desktop layout (side panel).
 
 ## What I left out, and why

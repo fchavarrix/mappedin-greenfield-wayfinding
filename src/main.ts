@@ -15,6 +15,7 @@ import { buildGuidance, fmtDistance, metres, walkMinutes, type Guidance, type St
 import { MAX_STOPS, orderCost, planTrip, shortestOrder, walkDistance, type TripPlan } from './trip';
 import { recentEvents, track } from './events';
 import { startOperator } from './operator';
+import { decorate, type Decor } from './decor';
 
 // Mappedin's public demo venue and key (from the developer docs). A customer deployment swaps these
 // for the venue's own key through env vars; nothing else in the app is venue-specific.
@@ -65,6 +66,9 @@ const savedTrips = new Map<string, { ids: string[]; customised: boolean }>();
  */
 let stepFree = false;
 const routeOptions = () => ({ accessible: stepFree });
+/** Map decoration (category tints, service icons, parking). `?decor=0` turns it off. */
+const DECOR = new URLSearchParams(location.search).get('decor') !== '0';
+let decor: Decor | undefined;
 const tripKey = () => (start && plan ? `${start.id}|${plan.label.toLowerCase()}` : '');
 let view: View = 'park';
 let token = 0;
@@ -514,6 +518,7 @@ function mainLevelPath() {
 function drawRoute() {
   if (!legs.length) return;
   mapView.Navigation.clear();
+  decor?.clearRouteOf(legs.flatMap((l) => l.coordinates));
   void mapView.Navigation.draw(legs.length === 1 ? legs[0] : legs, {
     pathOptions: { color: COLORS.route, width: 1.1, displayArrowsOnPath: true },
     inactivePathOptions: { color: '#8fb3ef', width: 0.8 },
@@ -535,7 +540,8 @@ function clearRoute() {
   mapView.Navigation.clear();
   stopMarkers.forEach((m) => mapView.Markers.remove(m));
   stopMarkers = [];
-  stops.forEach((s) => mapView.updateState(s.space, { color: 'initial' }));
+  stops.forEach((s) => mapView.updateState(s.space, { color: decor?.baseColor(s) ?? 'initial' }));
+  decor?.clearRouteOf(undefined);
   stops = [];
   legs = [];
   guidance = undefined;
@@ -674,6 +680,7 @@ function setStepFree(on: boolean) {
   stepFree = on;
   rememberStepFree(on);
   renderStepFree();
+  decor?.setStepFree(on);
   track('step_free_toggled', { on, view, from: start?.id ?? 'unknown' });
   if (!stops.length) return;
   if (returning) void routeBack();
@@ -780,7 +787,7 @@ async function init() {
     Object.assign(window, { qaResult: result });
     return;
   }
-  mapView = await show3dMap($('map'), mapData, { initialFloor: venue.main });
+  mapView = await show3dMap($('map'), mapData, { initialFloor: venue.main, ...(DECOR ? { shadows: 'auto' as const } : {}) });
   for (const s of venue.stores) {
     if (!s.mainLevel) continue;
     mapView.updateState(s.space, { interactive: true });
@@ -805,9 +812,11 @@ async function init() {
     return;
   }
 
+  if (DECOR) decor = decorate(mapData, mapView, venue);
   stepFree = recallStepFree();
   $('step-free').hidden = false;
   renderStepFree();
+  decor?.setStepFree(stepFree);
   renderStarts();
   renderChips();
   void renderResults();
