@@ -62,6 +62,25 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .season-chip { position: fixed; top: calc(62px + env(safe-area-inset-top)); left: 12px; margin-left: 0; padding: 4px 12px 4px 8px; }
 }
 
+/* seasonal characters (characters.ts) */
+.char { pointer-events: none; opacity: 0; transition: opacity 0.6s ease; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.18)); }
+.char.on { opacity: 1; }
+.char svg { display: block; }
+.char.left svg { transform: scaleX(-1); }
+.char-ghost svg { animation: char-float 1.8s ease-in-out infinite; }
+.char-pumpkin svg { animation: char-waddle 0.7s ease-in-out infinite; transform-origin: 50% 100%; }
+.char-pumpkin.left svg { animation-name: char-waddle-left; }
+.char-santa svg { animation: char-fly 2.4s ease-in-out infinite; }
+.char-santa.left svg { animation-name: char-fly-left; }
+@keyframes char-float { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-7px) rotate(3deg); } }
+@keyframes char-waddle { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+@keyframes char-waddle-left { 0%, 100% { transform: scaleX(-1) rotate(-6deg); } 50% { transform: scaleX(-1) rotate(6deg); } }
+@keyframes char-fly { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-9px) rotate(2deg); } }
+@keyframes char-fly-left { 0%, 100% { transform: scaleX(-1) translateY(0) rotate(-2deg); } 50% { transform: scaleX(-1) translateY(-9px) rotate(2deg); } }
+.char-ghost.left svg { animation-name: char-float-left; }
+@keyframes char-float-left { 0%, 100% { transform: scaleX(-1) translateY(0) rotate(-3deg); } 50% { transform: scaleX(-1) translateY(-7px) rotate(3deg); } }
+@media (prefers-reduced-motion: reduce) { .char { display: none; } }
+
 /* step-free route toggle */
 .step-free {
   margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px;

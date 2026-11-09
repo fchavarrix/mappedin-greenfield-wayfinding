@@ -1,6 +1,7 @@
 import type { EnterpriseLocation, MapData, MapView } from '@mappedin/mappedin-js';
 import treeUrl from '@mappedin/3d-assets/binary/tree_pine?url';
 import { metres } from './guidance';
+import type { CharacterKind } from './characters';
 import type { Store, Venue } from './venue';
 
 /**
@@ -30,6 +31,8 @@ export type Season = {
   decoration: string;
   /** Real 3D trees around the event (holidays). */
   trees: boolean;
+  /** Characters that roam the coldest wings (characters.ts). */
+  characters: CharacterKind[];
   event: {
     name: string;
     blurb: string;
@@ -61,6 +64,7 @@ export const SEASONS: Season[] = [
     entranceColor: '#ffd9ad',
     decoration: PUMPKIN,
     trees: false,
+    characters: ['ghost', 'pumpkin'],
     event: {
       name: 'Trick-or-Treat Central',
       blurb: 'Kids trick-or-treat at participating stores. Start here for the map and a bag.',
@@ -80,6 +84,7 @@ export const SEASONS: Season[] = [
     entranceColor: '#d7ecdc',
     decoration: GIFT,
     trees: true,
+    characters: ['santa'],
     event: {
       name: "Santa's Village",
       blurb: 'Photos with Santa, gift wrapping and the holiday gift guide.',

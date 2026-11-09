@@ -870,6 +870,11 @@ async function init() {
   if (DECOR) decor = decorate(mapData, mapView, venue);
   season = activeSeason();
   if (season) seasonEvent = applySeason(season, mapData, mapView, venue);
+  // Seasonal characters roam the coldest wings; never while a route is on screen. Off with ?decor=0.
+  if (season && DECOR) {
+    const { startCharacters } = await import('./characters');
+    startCharacters(season.characters, mapData, mapView, venue, () => legs.length > 0 || view === 'steps');
+  }
   stepFree = recallStepFree();
   $('step-free').hidden = false;
   renderStepFree();
