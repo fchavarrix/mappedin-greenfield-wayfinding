@@ -68,8 +68,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .char svg { display: block; }
 .char.left svg { transform: scaleX(-1); }
 .char-ghost svg { animation: char-float 1.8s ease-in-out infinite; }
-.char-pumpkin svg { animation: char-waddle 0.7s ease-in-out infinite; transform-origin: 50% 100%; }
-.char-pumpkin.left svg { animation-name: char-waddle-left; }
+.char-pumpkin svg, .char-snowman svg { animation: char-waddle 0.7s ease-in-out infinite; transform-origin: 50% 100%; }
+.char-pumpkin.left svg, .char-snowman.left svg { animation-name: char-waddle-left; }
 .char-santa svg { animation: char-fly 2.4s ease-in-out infinite; }
 .char-santa.left svg { animation-name: char-fly-left; }
 @keyframes char-float { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-7px) rotate(3deg); } }

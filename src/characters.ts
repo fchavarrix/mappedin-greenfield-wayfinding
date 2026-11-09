@@ -3,8 +3,8 @@ import { metres } from './guidance';
 import type { Store, Venue } from './venue';
 
 /**
- * Seasonal characters: a ghost and a pumpkin-head wandering the corridors at Halloween, Santa's sleigh
- * flying across the mall for the holidays. Decorative for now (catching them for a coupon is the
+ * Seasonal characters: a ghost and a pumpkin-head wandering the corridors at Halloween; Santa's sleigh
+ * flying across the mall and a snowman waddling the corridors for the holidays. Decorative for now (catching them for a coupon is the
  * "what's next", like the "Catch me if you can" demo).
  *
  * Where they go: the visitor's route comes first. With a route on screen, a character crosses a
@@ -16,7 +16,7 @@ import type { Store, Venue } from './venue';
  * Rules: one character of each kind at a time, a new appearance every 20–40 s, about 15 s to cross;
  * nothing at all if the device asks for reduced motion.
  */
-export type CharacterKind = 'ghost' | 'pumpkin' | 'santa';
+export type CharacterKind = 'ghost' | 'pumpkin' | 'santa' | 'snowman';
 
 const ART: Record<CharacterKind, string> = {
   ghost: `<svg viewBox="0 0 64 72" width="46" height="52" aria-hidden="true">
@@ -32,6 +32,19 @@ const ART: Record<CharacterKind, string> = {
     <ellipse cx="32" cy="26" rx="18" ry="15" fill="#f28c1b"/><ellipse cx="32" cy="26" rx="7" ry="15" fill="#e07a0c"/>
     <rect x="30" y="6" width="4" height="7" rx="1.5" fill="#4f7d2a"/>
     <path d="M22 22l4-5 4 5zM34 22l4-5 4 5z" fill="#3a2008"/><path d="M22 30q10 7 20 0l-3 3-3-2-4 2-3-2-4 2z" fill="#3a2008"/></svg>`,
+  // The holidays' walker, the counterpart of the pumpkin-head: same size, same waddle.
+  snowman: `<svg viewBox="0 0 64 84" width="44" height="58" aria-hidden="true">
+    <ellipse cx="32" cy="80" rx="14" ry="3" fill="#000" opacity=".12"/>
+    <path d="M21 38L8 29M12 32l-4-6M43 38l13-9M52 32l4-6" stroke="#6b4a2b" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="32" cy="62" r="16" fill="#fff" stroke="#c9d3e0" stroke-width="2"/>
+    <circle cx="32" cy="40" r="12" fill="#fff" stroke="#c9d3e0" stroke-width="2"/>
+    <circle cx="32" cy="21" r="9" fill="#fff" stroke="#c9d3e0" stroke-width="2"/>
+    <rect x="22" y="28" width="20" height="5" rx="2.5" fill="#c8322f"/><rect x="35" y="30" width="5" height="11" rx="2" fill="#c8322f"/>
+    <circle cx="32" cy="38" r="1.6" fill="#2b2b3a"/><circle cx="32" cy="44" r="1.6" fill="#2b2b3a"/><circle cx="32" cy="57" r="1.8" fill="#2b2b3a"/><circle cx="32" cy="64" r="1.8" fill="#2b2b3a"/>
+    <circle cx="28.5" cy="19" r="1.5" fill="#2b2b3a"/><circle cx="35.5" cy="19" r="1.5" fill="#2b2b3a"/>
+    <path d="M32 22l9 2.2-9 2z" fill="#f28c1b"/>
+    <rect x="20" y="11" width="24" height="3" rx="1.5" fill="#2b2b3a"/><rect x="24" y="1" width="16" height="11" rx="2" fill="#2b2b3a"/>
+    <rect x="24" y="8" width="16" height="3" fill="#2f8f4e"/></svg>`,
   santa: `<svg viewBox="0 0 150 64" width="120" height="51" aria-hidden="true">
     <ellipse cx="80" cy="60" rx="52" ry="3" fill="#000" opacity=".10"/>
     <g fill="#8a5a33"><ellipse cx="128" cy="30" rx="12" ry="6"/><ellipse cx="102" cy="32" rx="12" ry="6"/>

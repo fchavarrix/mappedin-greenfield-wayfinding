@@ -85,7 +85,7 @@ export const SEASONS: Season[] = [
     entranceColor: '#d7ecdc',
     decoration: GIFT,
     trees: true,
-    characters: ['santa'],
+    characters: ['santa', 'snowman'],
     event: {
       name: "Santa's Village",
       blurb: 'Photos with Santa, gift wrapping and the holiday gift guide.',
