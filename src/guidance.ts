@@ -63,6 +63,37 @@ function indexOn(path: Coordinate[], c: Coordinate, from: number) {
   return best;
 }
 
+/** The polyline without its first `m` metres (unchanged if it is shorter than that). */
+function trimStart(pts: XY[], m: number): XY[] {
+  let left = m;
+  for (let k = 1; k < pts.length; k++) {
+    const a = pts[k - 1], b = pts[k];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len >= left) {
+      const t = len ? left / len : 0;
+      return [[a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])], ...pts.slice(k)];
+    }
+    left -= len;
+  }
+  return pts;
+}
+
+/** How close a storefront must be to a turn to name it, and to the walk to say "you'll pass" it. */
+const TURN_RADIUS = 12;
+const PASS_RADIUS = 7;
+
+/** The store's footprint as lat/lon points (closed ring); its centre if the map has no polygon. */
+function storeOutline(s: Store): { latitude: number; longitude: number }[] {
+  const g = (s.space as unknown as { geoJSON?: { geometry?: { type: string; coordinates: unknown } } }).geoJSON?.geometry;
+  const ring =
+    g?.type === 'Polygon'
+      ? (g.coordinates as [number, number][][])[0]
+      : g?.type === 'MultiPolygon'
+        ? (g.coordinates as [number, number][][][])[0][0]
+        : undefined;
+  return ring?.length ? ring.map(([longitude, latitude]) => ({ latitude, longitude })) : [s.space.center];
+}
+
 const listNames = (stores: Store[]) => {
   const names = stores.map((s) => s.name);
   if (names.length <= 1) return names.join('');
@@ -85,19 +116,57 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
   // Stores that can serve as landmarks: on the main level, named, not the destination.
   const avoid = new Set([destination.id, ...(trip.avoid ?? [])]);
   const landmarks = venue.stores.filter((s) => s.mainLevel && s.location.type === 'tenant' && !avoid.has(s.id));
-  const centre = new Map(landmarks.map((s) => [s.id, xy(s.space.center)]));
-
-  const nearestStore = (c: Coordinate, max: number, exclude: Set<string>) => {
-    let best: Store | undefined, bestD = max;
-    const p = xy(c);
-    for (const s of landmarks) {
-      if (exclude.has(s.id)) continue;
-      const q = centre.get(s.id)!;
-      const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
-      if (d < bestD) (bestD = d), (best = s);
+  // Distances are measured to the store's outline, not its centre: a visitor sees the storefront.
+  // By centre, a small store set back from a corner beats the big one whose front is on it.
+  const outline = new Map(landmarks.map((s) => [s.id, storeOutline(s).map(xy)]));
+  /** Closest point of the store's outline to `p`, and how far it is. */
+  const closest = (s: Store, p: XY): { d: number; q: XY } => {
+    const ring = outline.get(s.id)!;
+    if (ring.length === 1) return { d: Math.hypot(p[0] - ring[0][0], p[1] - ring[0][1]), q: ring[0] };
+    let best = { d: Infinity, q: ring[0] };
+    for (let k = 1; k < ring.length; k++) {
+      const a = ring[k - 1], b = ring[k];
+      const { d, t } = distToSegment(p, a, b);
+      if (d < best.d) best = { d, q: [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])] };
     }
     return best;
   };
+  const toStore = (s: Store, p: XY) => closest(s, p).d;
+
+  /** Signed offset of `q` from the line through `p` along `dir`: + left, − right (metres). */
+  const side = (p: XY, dir: XY, q: XY) => (dir[0] * (q[1] - p[1]) - dir[1] * (q[0] - p[0])) / (Math.hypot(...dir) || 1);
+
+  /**
+   * The landmark of a turn: the storefront on the inside corner, the one on the turning side both
+   * before and after the corner (the store you walk around). Falls back to the closest storefront.
+   * A store across the corridor you came along can be closer, but it isn't the corner you turn at.
+   */
+  const turnStore = (at: number, kind: StepKind, max: number, exclude: Set<string>) => {
+    const p = xy(path[at]);
+    const back = xy(path[walkFrom(at, -1)]), ahead = xy(path[walkFrom(at, 1)]);
+    const inDir: XY = [p[0] - back[0], p[1] - back[1]], outDir: XY = [ahead[0] - p[0], ahead[1] - p[1]];
+    const sign = kind === 'left' || kind === 'slight-left' ? 1 : kind === 'right' || kind === 'slight-right' ? -1 : 0;
+    let inside: Store | undefined, insideD = max, any: Store | undefined, anyD = max;
+    for (const s of landmarks) {
+      if (exclude.has(s.id)) continue;
+      const { d, q } = closest(s, p);
+      if (d >= max) continue;
+      if (d < anyD) (anyD = d), (any = s);
+      const onSide = (dir: XY) => sign * side(p, dir, q) > -1.5; // a metre and a half of slack at the corner
+      if (sign && onSide(inDir) && onSide(outDir) && d < insideD) (insideD = d), (inside = s);
+    }
+    return inside ?? any;
+  };
+
+  /** Path index about 8 m before (-1) or after (+1) `at`, for the walking direction at a corner. */
+  function walkFrom(at: number, step: -1 | 1) {
+    let i = at, walked = 0;
+    while (i + step >= 0 && i + step < path.length && walked < 8) {
+      walked += metres(path[i], path[i + step]);
+      i += step;
+    }
+    return i === at ? Math.max(0, Math.min(path.length - 1, at + step)) : i;
+  }
 
   // Where the route crosses the building's edge, named after the closest anchor so it matches the
   // signage. Inbound that is the first entrance on the path; outbound, the last one.
@@ -145,8 +214,19 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
     points.push(p);
   }
 
+  // Each turn gets the storefront closest to the corner first. Only an earlier turn's landmark is
+  // excluded: a store mentioned as "you'll pass" on the way can still be the corner you turn at.
+  const turnLandmark = new Map<number, Store>();
+  const landmarkIds = new Set<string>();
+  points.forEach((p, i) => {
+    if (p.type !== 'Turn') return;
+    const s = turnStore(p.at, bearingKind(p.bearing), TURN_RADIUS, landmarkIds);
+    if (s) turnLandmark.set(i, s), landmarkIds.add(s.id);
+  });
+
   const steps: Step[] = [];
-  const used = new Set<string>();
+  // Stores already named, so "you'll pass" never repeats them or names an upcoming corner.
+  const used = new Set<string>(landmarkIds);
   const sign = entrance?.label.replace(/^(by|next to) /, '');
   for (let i = 0; i < points.length; i++) {
     const { type, at, coordinate } = points[i];
@@ -175,8 +255,7 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
 
     // The storefront at a turn is the landmark; the ones along an indoor walk are "you'll pass".
     const kind: StepKind = type === 'Departure' ? 'start' : type === 'Entrance' ? 'straight' : bearingKind(points[i].bearing);
-    const landmark = type === 'Turn' ? nearestStore(coordinate, 22, used) : undefined;
-    if (landmark) used.add(landmark.id);
+    const landmark = turnLandmark.get(i);
     const passed = outside || distance < 15 ? [] : passingStores(segment);
     passed.forEach((s) => used.add(s.id));
     const passText = passed.length ? `You'll pass ${listNames(passed.slice(0, 3))}.` : '';
@@ -241,18 +320,26 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
   /** Stores the visitor walks past on a stretch, in the order they appear. */
   function passingStores(segment: Coordinate[]) {
     if (segment.length < 2) return [];
-    const pts = segment.map(xy);
+    // Skip the first few metres: the stores there are the corner just turned, not ones you walk past.
+    const pts = trimStart(segment.map(xy), 6);
     const hits: { s: Store; t: number }[] = [];
     for (const s of landmarks) {
-      if (used.has(s.id)) continue;
-      const q = centre.get(s.id)!;
-      for (let k = 1; k < pts.length; k++) {
-        const { d, t } = distToSegment(q, pts[k - 1], pts[k]);
-        if (d < 13) {
-          hits.push({ s, t: k + t });
-          break;
+      // Anchors can name a corner (they match the signage), but "you'll pass" is the smaller tenants.
+      if (used.has(s.id) || s.anchor) continue;
+      // Closest approach between the walk and the storefront: outline corners to the walk, and the
+      // walk's points to the outline (a long front between two corners).
+      let best = { d: Infinity, t: 0 };
+      for (const q of outline.get(s.id)!) {
+        for (let k = 1; k < pts.length; k++) {
+          const { d, t } = distToSegment(q, pts[k - 1], pts[k]);
+          if (d < best.d) best = { d, t: k + t };
         }
       }
+      pts.forEach((p, k) => {
+        const d = toStore(s, p);
+        if (d < best.d) best = { d, t: k };
+      });
+      if (best.d < PASS_RADIUS) hits.push({ s, t: best.t });
     }
     return hits.sort((a, b) => a.t - b.t).map((h) => h.s).slice(0, 4);
   }
