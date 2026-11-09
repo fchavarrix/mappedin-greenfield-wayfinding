@@ -100,13 +100,24 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* ---------- bottom sheet ---------- */
 .sheet {
   position: fixed; z-index: 6; left: 0; right: 0; bottom: 0;
-  max-height: 58vh; overflow: auto; overscroll-behavior: contain;
+  max-height: 42vh; overflow: auto; overscroll-behavior: contain;
   background: var(--bg); border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px rgba(15, 61, 46, 0.16);
-  padding: 8px 16px calc(12px + env(safe-area-inset-bottom));
+  padding: 0 16px calc(12px + env(safe-area-inset-bottom));
+  transition: max-height 0.22s ease, height 0.22s ease;
 }
-.sheet[data-view='search'] { height: 52vh; }
-.sheet[data-view='steps'] { max-height: 50vh; }
-.grabber { width: 40px; height: 4px; border-radius: 4px; background: var(--line); margin: 0 auto 10px; }
+.sheet[data-view='search'] { height: 42vh; }
+.sheet[data-view='steps'] { max-height: 38vh; }
+/* Drag the grabber to resize: peek (just the title, the map is free), half (default) or full. */
+.sheet[data-snap='full'] { max-height: 86vh; }
+.sheet[data-snap='full'][data-view='search'] { height: 86vh; }
+.sheet[data-snap='peek'] { max-height: 96px; height: 96px; overflow: hidden; }
+.sheet.dragging { transition: none; }
+.grabber {
+  position: sticky; top: 0; z-index: 2; display: block; width: calc(100% + 32px); margin: 0 -16px 2px;
+  padding: 10px 0 12px; border: 0; background: var(--bg); cursor: grab; touch-action: none;
+}
+.grabber span { display: block; width: 44px; height: 5px; border-radius: 5px; background: var(--line); margin: 0 auto; }
+.sheet.dragging .grabber { cursor: grabbing; }
 @media (min-width: 900px) {
   .sheet { left: 16px; top: 76px; bottom: 16px; right: auto; width: 380px; max-height: none; height: auto !important; border-radius: var(--radius); }
   .grabber { display: none; }

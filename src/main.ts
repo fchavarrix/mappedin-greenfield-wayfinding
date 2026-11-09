@@ -117,8 +117,60 @@ function show(next: View) {
   view = next;
   document.querySelectorAll<HTMLElement>('.view').forEach((el) => (el.hidden = el.dataset.view !== next));
   $('sheet').dataset.view = next;
+  setSnap('half'); // every new view opens at the default height
   $('here').hidden = !start || next === 'park';
   requestAnimationFrame(updateOffsets);
+}
+
+// ---------- bottom sheet (phones): drag the grabber to peek, half or full ----------
+type Snap = 'peek' | 'half' | 'full';
+const narrow = () => innerWidth < 900;
+
+function setSnap(snap: Snap) {
+  const sheet = $('sheet');
+  if (narrow()) sheet.dataset.snap = snap;
+  else delete sheet.dataset.snap;
+}
+
+function setupSheet() {
+  const sheet = $('sheet');
+  const grabber = $('grabber');
+  let startY = 0;
+  let startH = 0;
+  let moved = false;
+  let dragging = false;
+
+  grabber.addEventListener('pointerdown', (e) => {
+    if (!narrow()) return;
+    dragging = true;
+    moved = false;
+    startY = e.clientY;
+    startH = sheet.getBoundingClientRect().height;
+    sheet.classList.add('dragging');
+    grabber.setPointerCapture(e.pointerId);
+  });
+  grabber.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 4) moved = true;
+    const h = Math.min(innerHeight * 0.9, Math.max(80, startH - dy));
+    sheet.style.height = sheet.style.maxHeight = `${h}px`;
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    sheet.classList.remove('dragging');
+    const h = sheet.getBoundingClientRect().height / innerHeight;
+    sheet.style.height = sheet.style.maxHeight = '';
+    const current = (sheet.dataset.snap as Snap) ?? 'half';
+    // A tap toggles between the map (peek) and the list (half); a drag snaps to the nearest height.
+    if (!moved) setSnap(current === 'half' ? 'peek' : 'half');
+    else setSnap(h < 0.25 ? 'peek' : h < 0.62 ? 'half' : 'full');
+    track('sheet_resized', { snap: sheet.dataset.snap ?? 'half', view });
+  };
+  grabber.addEventListener('pointerup', end);
+  grabber.addEventListener('pointercancel', end);
+  addEventListener('resize', () => setSnap((sheet.dataset.snap as Snap) ?? 'half'));
 }
 
 function offsets() {
@@ -816,6 +868,7 @@ function bind() {
   $('q').addEventListener('input', () => void renderResults());
   addEventListener('resize', updateOffsets);
   new ResizeObserver(updateOffsets).observe($('sheet'));
+  setupSheet();
 
   // Tap a storefront on the map to pick it.
   mapView.on('click', (e) => {

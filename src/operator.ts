@@ -277,6 +277,7 @@ const LABELS: Record<string, string> = {
   step_free_toggled: 'Step-free route',
   results_sorted: 'Sorted results',
   add_list_sorted: 'Sorted the other stores',
+  sheet_resized: 'Resized the panel',
 };
 
 const ENTRANCE: Record<string, string> = { 'lot-a': 'Parking Lot A', 'lot-b': 'Parking Lot B', garage: 'the Parking Garage' };
@@ -289,6 +290,8 @@ function describe(e: AppEvent) {
   const extra =
     e.name === 'results_sorted' || e.name === 'add_list_sorted'
       ? `${p.by === 'az' ? 'A–Z' : 'by relevance'}${p.term ? ` (“${p.term}”)` : p.label ? ` (“${p.label}”)` : ''}`
+      : e.name === 'sheet_resized'
+      ? `${p.snap === 'peek' ? 'map view' : p.snap === 'full' ? 'full list' : 'half'} (${p.view})`
       : e.name === 'step_free_toggled'
       ? `${p.on ? 'on' : 'off'}${p.from && p.from !== 'unknown' ? `, from ${ENTRANCE[String(p.from)] ?? p.from}` : ''}`
       : e.name === 'route_abandoned'

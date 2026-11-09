@@ -32,7 +32,7 @@
     </header>
 
     <section class="sheet" id="sheet" aria-live="polite">
-      <div class="grabber" aria-hidden="true"></div>
+      <button class="grabber" id="grabber" type="button" aria-label="Show more or less of the map"><span></span></button>
 
       <!-- 1. Where did you park? (skipped when the visitor scans the QR at their parking entrance) -->
       <div class="view" data-view="park" hidden>
@@ -63,6 +63,7 @@
         <button class="back" type="button" data-back>← Back to results</button>
         <h2 id="trip-title"></h2>
         <p class="trip" id="trip-summary">Finding the shortest order…</p>
+        <button class="primary" id="trip-go" type="button" disabled>Start route</button>
         <div class="trip-tools">
           <button type="button" id="trip-reverse">⇅ Reverse</button>
           <button type="button" id="trip-reset" hidden>↺ Shortest order</button>
@@ -71,7 +72,6 @@
         <p class="hint edit-hint">Use ↑ ↓ to change the order and ✕ to drop a store.</p>
         <ol class="stops" id="trip-stops"></ol>
         <p class="hint" id="trip-note"></p>
-        <button class="primary" id="trip-go" type="button" disabled>Start route</button>
         <h3 class="add-title" id="trip-add-title"></h3>
         <div class="sort" id="trip-add-sort" role="group" aria-label="Sort the other stores" hidden>
           <span>Sort</span>
