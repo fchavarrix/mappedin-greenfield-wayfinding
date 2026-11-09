@@ -1,16 +1,18 @@
 import type { MapData } from '@mappedin/mappedin-js';
 import { hoursToday, type Store, type Venue } from './venue';
+import { nameCheck } from './geometry';
 
 /**
  * Scripted QA over the live venue data, the same checks that produced QA.md. Open `?view=qa`.
  * Clicking 408 routes and 85 searches by hand is not realistic, and data gaps (a store with no door,
  * a missing tag) are invisible on the map: they only show up when every case is run.
  *
- * Four checks:
+ * Five checks:
  * 1. Routing coverage: every parking area to every main-level store, through the SDK router.
  * 2. Search audit: everyday terms through Mappedin Search, sorted into buckets.
  * 3. Step-free routing: every parking area to every Upper Level store with `accessible: true`.
  * 4. Content completeness: what each tenant record is missing (logo, hours, description).
+ * 5. Store names: whether each name lands inside its store (the map data's anchor vs. the app's point).
  *
  * The buckets in (2) are automatic. Whether a result is *misleading* ("bank" → a massage chair store)
  * is a human judgement: those terms keep the verdict of the Nov 6 review, and the report lists what each
@@ -132,7 +134,19 @@ export async function runQa(mapData: MapData, venue: Venue, onProgress: (text: s
     }))
     .filter((r) => r.missing.length);
 
-  return { tenants: tenants.length, routes, failed, unreachable, searches, drift, stepFree, upper: upperStores.length, content };
+  // 5. Where each store's name goes: the map data's anchor against the point the app computes.
+  const names = { outside: [] as string[], onEdge: [] as string[], oursInside: 0, oursMin: 1, checked: 0 };
+  for (const s of tenants) {
+    const c = nameCheck(s.space);
+    if (!c) continue;
+    names.checked++;
+    if (c.anchor < 0) names.outside.push(s.name);
+    else if (c.anchor < 1 / 3) names.onEdge.push(s.name);
+    if (c.ours > 0) names.oursInside++;
+    names.oursMin = Math.min(names.oursMin, c.ours);
+  }
+
+  return { tenants: tenants.length, routes, failed, unreachable, searches, drift, stepFree, upper: upperStores.length, content, names };
 }
 
 export function renderQa(el: HTMLElement, r: Awaited<ReturnType<typeof runQa>>) {
@@ -146,6 +160,10 @@ export function renderQa(el: HTMLElement, r: Awaited<ReturnType<typeof runQa>>) 
     <p><b>Step-free (accessible) routing:</b> ${r.stepFree.reached} of ${r.stepFree.routes} routes to the ${r.upper} Upper Level stores found
     (${r.upper} stores × every parking area); ${r.stepFree.elevatorOnly} use elevators only, and ${r.stepFree.switched} would otherwise take an escalator.
     No step-free route: <b>${r.stepFree.blocked.map(esc).join(', ') || 'none'}</b>.</p>
+    <p><b>Store names on the map:</b> the map data's own anchor falls outside the store for ${r.names.outside.length}
+    (${r.names.outside.map(esc).join(', ') || 'none'}) and against a wall for ${r.names.onEdge.length} of ${r.names.checked}.
+    The app places each name from the outline instead: ${r.names.oursInside} of ${r.names.checked} inside, the shallowest at
+    ${Math.round(r.names.oursMin * 100)}% of the store's depth.</p>
     <p><b>Search (${r.searches.length} terms, both levels):</b> route ${count('route')} · one place ${count('one place')} · upper level only ${count('upper only')} · nothing ${count('nothing')} · misleading ${count('misleading')} (human review, Nov 6).
     ${fails} of ${r.searches.length} (${Math.round((fails / r.searches.length) * 100)}%) find nothing or the wrong stores.</p>
     <p><b>Changed since the deck (Nov 6):</b> ${

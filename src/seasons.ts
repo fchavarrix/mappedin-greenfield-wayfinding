@@ -1,6 +1,7 @@
 import type { EnterpriseLocation, MapData, MapView } from '@mappedin/mappedin-js';
 import treeUrl from '@mappedin/3d-assets/binary/tree_pine?url';
 import { metres } from './guidance';
+import { labelPoint } from './geometry';
 import type { CharacterKind } from './characters';
 import type { Store, Venue } from './venue';
 
@@ -141,7 +142,8 @@ export function applySeason(season: Season, mapData: MapData, mapView: MapView, 
 
   // The event: label, decorations around it, trees for the holidays.
   mapView.updateState(space, { color: season.entranceColor });
-  mapView.Labels.add(space.center, season.event.name, {
+  const at = labelPoint(space);
+  mapView.Labels.add(mapView.createCoordinate(at.latitude, at.longitude, venue.main), season.event.name, {
     rank: 'always-visible',
     appearance: { icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="${season.accent}"/>${season.glyph}</svg>`, iconSize: 26, textSize: 12, color: season.accent },
   });

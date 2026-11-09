@@ -17,6 +17,7 @@ import { recentEvents, track } from './events';
 import { startOperator } from './operator';
 import { decorate, type Decor } from './decor';
 import { activeSeason, applySeason, matchesEvent, type Season } from './seasons';
+import { labelPoint } from './geometry';
 
 // Mappedin's public demo venue and key (from the developer docs). A customer deployment swaps these
 // for the venue's own key through env vars; nothing else in the app is venue-specific.
@@ -81,6 +82,7 @@ let token = 0;
 let hereMarker: ReturnType<MapView['Markers']['add']> | undefined;
 let stopMarkers: ReturnType<MapView['Markers']['add']>[] = [];
 const labels = new Map<string, ReturnType<MapView['Labels']['add']>>();
+const labelStore = new Map<string, Store>();
 let emphasised: Store[] = [];
 
 const multi = () => stops.length > 1;
@@ -626,11 +628,17 @@ function drawRoute() {
   });
 }
 
+/** Where a store's name and pin go: inside its outline (the map data's own anchor can sit on a wall). */
+function nameAt(s: Store) {
+  const p = labelPoint(s.space);
+  return mapView.createCoordinate(p.latitude, p.longitude, s.floor);
+}
+
 function markStops() {
   stops.forEach((s, i) => {
     mapView.updateState(s.space, { color: COLORS.selected });
     const num = multi() ? `<span class="num">${i + 1}</span>` : '';
-    stopMarkers.push(mapView.Markers.add(s.space.center, `<div class="pin">${logo(s)}${num}</div>`, { rank: 'always-visible' }));
+    stopMarkers.push(mapView.Markers.add(nameAt(s), `<div class="pin">${logo(s)}${num}</div>`, { rank: 'always-visible' }));
   });
 }
 
@@ -872,8 +880,10 @@ function bind() {
 
   // Tap a storefront on the map to pick it.
   mapView.on('click', (e) => {
+    // A name is anchored to a point, not to the space, so a tap on it is matched back to its store.
     const space = e.spaces?.[0];
-    const s = space && venue.bySpace.get(space.id);
+    const label = e.labels?.[0];
+    const s = (label && labelStore.get(label.id)) || (space && venue.bySpace.get(space.id));
     if (s && view !== 'steps') void selectStore(s);
   });
 }
@@ -902,12 +912,13 @@ async function init() {
     // Storefront names on the map: the instructions say "turn right at Holt Renfrew", so the visitor
     // has to be able to find Holt Renfrew on screen too.
     if (s.location.type === 'tenant') {
-      const label = mapView.Labels.add(s.space, s.name, {
+      const label = mapView.Labels.add(nameAt(s), s.name, {
         rank: s.anchor ? 'high' : 'medium',
         interactive: true,
         appearance: { icon: s.logo, iconVisible: s.anchor && !!s.logo, textSize: 11, pinColor: '#0f7a55' },
       });
       labels.set(s.id, label);
+      labelStore.set(label.id, s);
     }
   }
   if (import.meta.env.DEV) Object.assign(window, { mapData, mapView, venue, buildGuidance, planTrip, recentEvents });
