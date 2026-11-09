@@ -63,6 +63,17 @@ function indexOn(path: Coordinate[], c: Coordinate, from: number) {
   return best;
 }
 
+/** Smallest gap between two outlines (0 when they share a wall), from each one's corners to the other's edges. */
+function ringGap(a: XY[], b: XY[]) {
+  const toRing = (p: XY, r: XY[]) => {
+    let d = Infinity;
+    for (let k = 1; k < r.length; k++) d = Math.min(d, distToSegment(p, r[k - 1], r[k]).d);
+    return d;
+  };
+  if (a.length < 2 || b.length < 2) return Infinity;
+  return Math.min(...a.map((p) => toRing(p, b)), ...b.map((p) => toRing(p, a)));
+}
+
 /** The polyline without its first `m` metres (unchanged if it is shorter than that). */
 function trimStart(pts: XY[], m: number): XY[] {
   let left = m;
@@ -224,6 +235,20 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
     if (s) turnLandmark.set(i, s), landmarkIds.add(s.id);
   });
 
+  // The destination's next-door store, to finish with "Second Cup is on your right, next to
+  // Naturalizer": a small storefront is easy to miss, the neighbour is the one the visitor just
+  // turned at. Among the stores sharing a wall with the destination, the last turn's landmark wins,
+  // then the one closest to the door.
+  const destRing = storeOutline(destination).map(xy);
+  const door = xy(path[path.length - 1]);
+  const lastTurnStore = [...turnLandmark.entries()].sort((a, b) => b[0] - a[0])[0]?.[1];
+  const nextDoor = (() => {
+    if (!inbound || destRing.length < 2) return undefined;
+    const touching = landmarks.filter((s) => ringGap(outline.get(s.id)!, destRing) < 1.5);
+    if (lastTurnStore && touching.includes(lastTurnStore)) return lastTurnStore;
+    return touching.sort((a, b) => toStore(a, door) - toStore(b, door))[0];
+  })();
+
   const steps: Step[] = [];
   // Stores already named, so "you'll pass" never repeats them or names an upcoming corner.
   const used = new Set<string>(landmarkIds);
@@ -311,7 +336,11 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
     const dot = (bx - ax) * (sx - bx) + (by - ay) * (sy - by);
     const angle = (Math.atan2(cross, dot) * 180) / Math.PI; // + is left of the walking direction
     const side = Math.abs(angle) < 40 ? 'straight ahead' : angle > 0 ? 'on your left' : 'on your right';
-    steps.push({ kind: 'arrive', text: `${destination.name} is ${side}`, detail: 'You have arrived.', path: [], distance: 0, floorId: destination.floor.id, passing: [] });
+    const beside = nextDoor ? `, next to ${nextDoor.name}` : '';
+    // The step that turns at the neighbour already says where the destination is.
+    const lastWalk = steps[steps.length - 1];
+    if (nextDoor && lastWalk?.landmark === nextDoor) lastWalk.detail = `${lastWalk.detail} ${destination.name} is right next to ${nextDoor.name}.`.trim();
+    steps.push({ kind: 'arrive', text: `${destination.name} is ${side}${beside}`, detail: 'You have arrived.', path: [], distance: 0, floorId: destination.floor.id, passing: [] });
   } else {
     steps.push({ kind: 'arrive', text: `You're back at ${trip.to}`, detail: 'Thanks for visiting Greenfield Mall.', path: [], distance: 0, floorId: venue.main.id, passing: [] });
   }

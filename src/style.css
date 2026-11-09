@@ -220,7 +220,9 @@ h2 { font-size: 20px; margin: 0; }
 .you { display: flex; flex-direction: column; align-items: center; transform: translateY(-6px); }
 .you span { width: 18px; height: 18px; border-radius: 50%; background: var(--route); border: 3px solid #fff; box-shadow: 0 0 0 8px rgba(26, 115, 232, 0.22); }
 .you b { margin-top: 6px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 600; padding: 3px 7px; border-radius: 6px; white-space: nowrap; }
-.pin .logo { width: 38px; height: 38px; border: 2px solid var(--route); box-shadow: var(--shadow); }
+/* The stop pin is what the visitor looks for at the end of each leg: twice the old 38 px. */
+.pin .logo { width: 76px; height: 76px; border-radius: 16px; border: 3px solid var(--route); box-shadow: var(--shadow); }
+.pin .logo img { padding: 7px; }
 
 .loading { position: fixed; inset: 0; display: grid; place-items: center; background: #eef2f0; color: var(--muted); z-index: 10; font-weight: 600; }
 
@@ -246,8 +248,8 @@ h2 { font-size: 20px; margin: 0; }
 }
 .stops .leg { margin-left: auto; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 .pin .num {
-  position: absolute; top: -8px; right: -8px; width: 20px; height: 20px; border-radius: 50%; background: var(--route);
-  color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; border: 2px solid #fff;
+  position: absolute; top: -10px; right: -10px; width: 28px; height: 28px; border-radius: 50%; background: var(--route);
+  color: #fff; font-size: 14px; font-weight: 700; display: grid; place-items: center; border: 2px solid #fff;
 }
 .pin { position: relative; }
 
