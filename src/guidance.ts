@@ -340,6 +340,12 @@ export function buildGuidance(directions: Directions, venue: Venue, destination:
     // The step that turns at the neighbour already says where the destination is.
     const lastWalk = steps[steps.length - 1];
     if (nextDoor && lastWalk?.landmark === nextDoor) lastWalk.detail = `${lastWalk.detail} ${destination.name} is right next to ${nextDoor.name}.`.trim();
+    // The turn into the destination itself is just "Turn left" / "Turn right": by then the visitor is
+    // at the door, and a store name there reads as if that store were the destination. The landmark
+    // stays on the step so its name is still highlighted on the map.
+    if (lastWalk && TURNS.includes(lastWalk.kind) && lastWalk.distance < 25 && lastWalk.landmark && lastWalk.text === `${VERB[lastWalk.kind]} at ${lastWalk.landmark.name}`) {
+      lastWalk.text = VERB[lastWalk.kind];
+    }
     steps.push({ kind: 'arrive', text: `${destination.name} is ${side}${beside}`, detail: 'You have arrived.', path: [], distance: 0, floorId: destination.floor.id, passing: [] });
   } else {
     steps.push({ kind: 'arrive', text: `You're back at ${trip.to}`, detail: 'Thanks for visiting Greenfield Mall.', path: [], distance: 0, floorId: venue.main.id, passing: [] });
