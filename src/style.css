@@ -47,6 +47,21 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .here[hidden] { display: none; }
 .here .dot { width: 10px; height: 10px; border-radius: 50%; background: #4cc38a; box-shadow: 0 0 0 3px rgba(76, 195, 138, 0.35); flex: none; }
 .here .chev { opacity: 0.7; }
+/* step-free route toggle */
+.step-free {
+  margin-left: auto; flex: none; display: flex; align-items: center; gap: 6px;
+  background: var(--bg); color: var(--brand-ink); border: 2px solid transparent; border-radius: 999px;
+  padding: 7px 12px; box-shadow: var(--shadow); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.step-free[hidden] { display: none; }
+.step-free > span:first-child { font-size: 16px; line-height: 1; }
+.step-free[aria-pressed='true'] { background: #1a73e8; color: #fff; border-color: #0b4fbf; }
+.step-free:focus-visible { outline: 3px solid #1a73e8; outline-offset: 2px; }
+@media (max-width: 520px) {
+  .step-free { padding: 7px 10px; }
+  .step-free .sf-label { display: none; }
+  .here .here-pre { display: none; }
+}
 
 /* ---------- bottom sheet ---------- */
 .sheet {

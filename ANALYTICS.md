@@ -30,6 +30,7 @@ What the app measures, why, and who acts on it. Everything here comes from the a
 | `stop_added` | label, store, stops | The visitor adds another matching store to their route | **Pull per tenant**: stores people choose on their own, beyond the suggestion (H3, H4) |
 | `route_reset_to_suggested` | label | Back to the suggested stores | Whether the suggestion was good enough |
 | `category_route_reopened` | label, stops | The visitor reopens a route they had already edited (kept for the session) | Return to a planned visit |
+| `step_free_toggled` | on, view, from | The visitor turns the step-free route on or off | **How many visitors need a route without stairs**, and from which parking area: elevator capacity, accessible parking, where to lend wheelchairs |
 
 Route exposure (how often a storefront ends up on someone's route) is derived from `route_started` plus the route geometry, not logged per store.
 

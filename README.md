@@ -27,7 +27,8 @@ The real problem is not drawing a line on a map. It is that a first-time visitor
 - **Operator view (`?view=operator`)**: what the app measures with no new hardware. A live feed of the real events from the visitor app (open in another tab), and thirty days of **simulated** usage labelled as such: route exposure heat map, Pareto, arrivals by parking entrance, **what visitors look for and don't find** (real terms checked against this venue, simulated volumes, real searches added live, each routed to leasing, content or operations), a diagnosis per tenant (location vs interest) with a monthly report, the five hypotheses this release tests, what sensors and sales data would unlock, and the table of assumptions. Plan of events: **[ANALYTICS.md](ANALYTICS.md)**.
 - **Back to my car**: after arrival, one tap routes back to the parking area the visitor came from, with exit wording.
 - **Deep links**: `?from=<lot-a|lot-b|garage>` for the QR signs and `?to=<store>` for tenants to link to their storefront.
-- **Graceful data gaps**: a store with no door in the map data still gets a route to the corridor in front of it. An upstairs store routes to the escalator and hands off.
+- **Step-free route (♿ in the top bar)**: one tap keeps every route off stairs and escalators (the SDK's `accessible` option), remembered on the device. On the main level nothing changes; at the hand-off to the Upper Level the route goes to the elevator ("Take the elevator up…"). Checked over all 333 parking → Upper Level routes in the scripted QA.
+- **Graceful data gaps**: a store with no door in the map data still gets a route to the corridor in front of it. An upstairs store routes to the escalator (or the elevator, step-free) and hands off.
 - Phone-first layout (bottom sheet) and a desktop layout (side panel).
 
 ## What I left out, and why
@@ -38,7 +39,7 @@ The real problem is not drawing a line on a map. It is that a first-time visitor
 | Multi-level routing | Out of scope (main level). The route stops at the escalator with a clear instruction instead of a dead end. |
 | Sending analytics to a backend | Events are designed and logged (see ANALYTICS.md), but where they go is Greenfield's decision and privacy policy; in the demo they stay in the browser. |
 | Promotions on the route | Easy to build, but it would be fake data in a demo and the tenant program has to be designed with the customer's leasing team. |
-| i18n, accessibility routing toggle, kiosk mode | Not needed for the first slice; the SDK supports all three. |
+| i18n, kiosk mode, screen-reader pass | Not needed for the first slice; the SDK supports the first two. Step-free routing did ship (see above). |
 
 ## QA
 

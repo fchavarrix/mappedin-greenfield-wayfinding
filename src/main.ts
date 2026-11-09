@@ -26,6 +26,7 @@ const MAP_OPTIONS = {
 
 const COLORS = { route: '#1a73e8', active: '#0b4fbf', selected: '#ffd166' };
 const STORAGE_KEY = 'greenfield.start';
+const STEP_FREE_KEY = 'greenfield.stepFree';
 
 type View = 'park' | 'search' | 'trip' | 'store' | 'steps';
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -57,6 +58,13 @@ let tripPool: Store[] = [];
  * going back to the results and reopening the route keeps the stores they dropped, added or moved.
  */
 const savedTrips = new Map<string, { ids: string[]; customised: boolean }>();
+/**
+ * Step-free routing (wheelchair, stroller, a cart): the SDK's `accessible` option keeps every route
+ * off stairs and escalators. On the main level nothing changes; it matters at the hand-off to the
+ * Upper Level, which then points to the elevator. Remembered on the device.
+ */
+let stepFree = false;
+const routeOptions = () => ({ accessible: stepFree });
 const tripKey = () => (start && plan ? `${start.id}|${plan.label.toLowerCase()}` : '');
 let view: View = 'park';
 let token = 0;
@@ -79,6 +87,18 @@ const recall = () => {
     return localStorage.getItem(STORAGE_KEY) ?? undefined;
   } catch {
     return undefined;
+  }
+};
+const rememberStepFree = (on: boolean) => {
+  try {
+    localStorage.setItem(STEP_FREE_KEY, on ? '1' : '0');
+  } catch {}
+};
+const recallStepFree = () => {
+  try {
+    return localStorage.getItem(STEP_FREE_KEY) === '1';
+  } catch {
+    return false;
   }
 };
 
@@ -226,12 +246,12 @@ function logo(s: Store, id = '') {
 const escapeHtml = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 // ---------- one store ----------
-async function selectStore(next: Store) {
+async function selectStore(next: Store, log = true) {
   const my = ++token;
   clearRoute();
   stops = [next];
   returning = false;
-  track('store_selected', { store: next.name, category: next.category, from: start?.id ?? 'unknown' });
+  if (log) track('store_selected', { store: next.name, category: next.category, from: start?.id ?? 'unknown' });
   $('store-logo').outerHTML = logo(next, 'store-logo');
   $('store-name').textContent = next.name;
   $('store-meta').textContent = [next.category, next.mainLevel ? 'Main Level' : next.floor.name].join(' · ');
@@ -260,7 +280,7 @@ async function selectStore(next: Store) {
   guidance = buildGuidance(result, venue, next, { from: start.name, to: next.name, direction: 'in' });
   stepLeg = guidance.steps.map(() => 0);
   const via = guidance.entrance ? ` · enter ${guidance.entrance}` : '';
-  const upstairs = next.mainLevel ? '' : ` · then up to the ${next.floor.name}`;
+  const upstairs = next.mainLevel ? '' : ` · then ${stepFree ? 'the elevator ' : ''}up to the ${next.floor.name}`;
   $('store-trip').innerHTML = `<b>${guidance.minutes} min walk</b> · ${fmtDistance(guidance.distance)}${escapeHtml(via + upstairs)}`;
   $<HTMLButtonElement>('go').disabled = false;
   drawRoute();
@@ -284,19 +304,19 @@ async function safely<T>(fn: () => Promise<T | undefined>): Promise<T | undefine
  * customer's content team.
  */
 async function routeTo(from: Start['target'] | Coordinate | Store['space'], to: Store): Promise<Directions | undefined> {
-  const direct = await mapData.getDirections(from, to.space);
+  const direct = await mapData.getDirections(from, to.space, routeOptions());
   if (direct) return direct;
   const near = venue.stores
     .filter((s) => s !== to && s.mainLevel && s.location.type === 'tenant')
     .sort((a, b) => metres(a.space.center, to.space.center) - metres(b.space.center, to.space.center))
     .slice(0, 4);
   for (const n of near) {
-    const viaNeighbour = await mapData.getDirections(from, n.space);
+    const viaNeighbour = await mapData.getDirections(from, n.space, routeOptions());
     if (!viaNeighbour) continue;
     const closest = viaNeighbour.coordinates.reduce((best, c) =>
       metres(c, to.space.center) < metres(best, to.space.center) ? c : best,
     );
-    return (await mapData.getDirections(from, closest)) ?? viaNeighbour;
+    return (await mapData.getDirections(from, closest, routeOptions())) ?? viaNeighbour;
   }
   return undefined;
 }
@@ -358,7 +378,7 @@ async function buildTrip(order: Store[]) {
   $<HTMLButtonElement>('trip-go').disabled = true;
 
   // One request for all the legs, in the chosen order. If the SDK cannot chain them, build each leg.
-  let result = await safely(() => mapData.getDirectionsMultiDestination(start!.target, stops.map((s) => s.space)));
+  let result = await safely(() => mapData.getDirectionsMultiDestination(start!.target, stops.map((s) => s.space), routeOptions()));
   if (!result || result.length !== stops.length) {
     const built: Directions[] = [];
     let from: Start['target'] | Store['space'] = start.target;
@@ -605,8 +625,8 @@ async function routeBack() {
   const lastLeg = legs[legs.length - 1];
   const end = lastLeg?.coordinates[lastLeg.coordinates.length - 1];
   const result =
-    (await safely(() => mapData.getDirections(from.space, start!.target))) ??
-    (end ? await safely(() => mapData.getDirections(end, start!.target)) : undefined);
+    (await safely(() => mapData.getDirections(from.space, start!.target, routeOptions()))) ??
+    (end ? await safely(() => mapData.getDirections(end, start!.target, routeOptions())) : undefined);
   if (!result) return finishTrip();
   mapView.Navigation.clear();
   legs = [result];
@@ -641,6 +661,25 @@ const ARROWS: Record<StepKind, string> = {
   down: svg('<path d="M4 8h5l7 12h4M20 14v6h-6"/>'),
   arrive: svg('<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>'),
 };
+
+// ---------- step-free routing ----------
+function renderStepFree() {
+  const b = $('step-free');
+  b.setAttribute('aria-pressed', String(stepFree));
+  b.title = stepFree ? 'Step-free route on: elevators only, no stairs or escalators' : 'Turn on for a route without stairs or escalators';
+}
+
+/** Turning it on or off re-routes whatever is on screen, so the visitor never follows a stale route. */
+function setStepFree(on: boolean) {
+  stepFree = on;
+  rememberStepFree(on);
+  renderStepFree();
+  track('step_free_toggled', { on, view, from: start?.id ?? 'unknown' });
+  if (!stops.length) return;
+  if (returning) void routeBack();
+  else if (multi() && (view === 'trip' || view === 'steps')) void buildTrip([...stops]);
+  else if (view === 'store' || view === 'steps') void selectStore(stops[0], false);
+}
 
 // ---------- wiring ----------
 function goBack() {
@@ -690,6 +729,7 @@ function bind() {
     renderStarts();
     show('park');
   });
+  $('step-free').addEventListener('click', () => setStepFree(!stepFree));
   $('trip-bar').addEventListener('click', () => void openTrip());
   $('trip-go').addEventListener('click', () => {
     if (plan) track('category_route_started', { label: plan.label, stops: stops.map((s) => s.name), customised });
@@ -765,6 +805,9 @@ async function init() {
     return;
   }
 
+  stepFree = recallStepFree();
+  $('step-free').hidden = false;
+  renderStepFree();
   renderStarts();
   renderChips();
   void renderResults();

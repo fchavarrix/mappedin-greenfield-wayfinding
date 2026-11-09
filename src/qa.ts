@@ -6,10 +6,11 @@ import { hoursToday, type Store, type Venue } from './venue';
  * Clicking 408 routes and 85 searches by hand is not realistic, and data gaps (a store with no door,
  * a missing tag) are invisible on the map: they only show up when every case is run.
  *
- * Three checks:
+ * Four checks:
  * 1. Routing coverage: every parking area to every main-level store, through the SDK router.
  * 2. Search audit: everyday terms through Mappedin Search, sorted into buckets.
- * 3. Content completeness: what each tenant record is missing (logo, hours, description).
+ * 3. Step-free routing: every parking area to every Upper Level store with `accessible: true`.
+ * 4. Content completeness: what each tenant record is missing (logo, hours, description).
  *
  * The buckets in (2) are automatic. Whether a result is *misleading* ("bank" → a massage chair store)
  * is a human judgement: those terms keep the verdict of the Nov 6 review, and the report lists what each
@@ -96,7 +97,32 @@ export async function runQa(mapData: MapData, venue: Venue, onProgress: (text: s
   const drift = searches.filter((s) => (s.expected === 'misleading' ? s.bucket === 'nothing' : s.bucket !== s.expected));
   onProgress('Search audit done');
 
-  // 3. Content completeness
+  // 3. Step-free routing: every parking area to every Upper Level store with `accessible: true`.
+  // The main level has no level changes, so this is where the toggle matters: the hand-off must be an elevator.
+  const connections = (d: Awaited<ReturnType<MapData['getDirections']>>) =>
+    (d?.instructions ?? []).map((i) => (i.action as { connection?: { type?: string } }).connection?.type).filter((t): t is string => !!t);
+  const upperStores = venue.stores.filter((s) => !s.mainLevel && s.location.type === 'tenant');
+  const stepFree = { routes: 0, reached: 0, elevatorOnly: 0, switched: 0, blocked: [] as string[] };
+  for (const start of venue.starts) {
+    for (const store of upperStores) {
+      stepFree.routes++;
+      const [normal, accessible] = await Promise.all([
+        mapData.getDirections(start.target, store.space).catch(() => undefined),
+        mapData.getDirections(start.target, store.space, { accessible: true }).catch(() => undefined),
+      ]);
+      if (!accessible) {
+        stepFree.blocked.push(`${start.short} → ${store.name}`);
+        continue;
+      }
+      stepFree.reached++;
+      const types = connections(accessible);
+      if (types.length && types.every((t) => t.toLowerCase() === 'elevator')) stepFree.elevatorOnly++;
+      if (connections(normal).some((t) => t.toLowerCase() !== 'elevator')) stepFree.switched++;
+    }
+    onProgress(`Step-free routes from ${start.short} done`);
+  }
+
+  // 4. Content completeness
   const content: ContentRow[] = tenants
     .map((s) => ({
       store: s.name,
@@ -106,7 +132,7 @@ export async function runQa(mapData: MapData, venue: Venue, onProgress: (text: s
     }))
     .filter((r) => r.missing.length);
 
-  return { tenants: tenants.length, routes, failed, unreachable, searches, drift, content };
+  return { tenants: tenants.length, routes, failed, unreachable, searches, drift, stepFree, upper: upperStores.length, content };
 }
 
 export function renderQa(el: HTMLElement, r: Awaited<ReturnType<typeof runQa>>) {
@@ -117,6 +143,9 @@ export function renderQa(el: HTMLElement, r: Awaited<ReturnType<typeof runQa>>) 
     <h2>Scripted QA · ${new Date().toISOString().slice(0, 10)}</h2>
     <p><b>Routing:</b> ${r.routes.length - r.failed.length} of ${r.routes.length} routes found (${r.tenants} main-level stores × every parking area).
     Unreachable from every start: <b>${r.unreachable.map(esc).join(', ') || 'none'}</b>.</p>
+    <p><b>Step-free (accessible) routing:</b> ${r.stepFree.reached} of ${r.stepFree.routes} routes to the ${r.upper} Upper Level stores found
+    (${r.upper} stores × every parking area); ${r.stepFree.elevatorOnly} use elevators only, and ${r.stepFree.switched} would otherwise take an escalator.
+    No step-free route: <b>${r.stepFree.blocked.map(esc).join(', ') || 'none'}</b>.</p>
     <p><b>Search (${r.searches.length} terms, both levels):</b> route ${count('route')} · one place ${count('one place')} · upper level only ${count('upper only')} · nothing ${count('nothing')} · misleading ${count('misleading')} (human review, Nov 6).
     ${fails} of ${r.searches.length} (${Math.round((fails / r.searches.length) * 100)}%) find nothing or the wrong stores.</p>
     <p><b>Changed since the deck (Nov 6):</b> ${

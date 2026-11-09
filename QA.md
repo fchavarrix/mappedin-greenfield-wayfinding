@@ -29,6 +29,8 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 | 22 | Edit controls on a phone | 375 × 812: ↑ ↓ ✕ at 38 px with blue/red borders and a hint line above the list | The first tester missed the old 30 px grey buttons; the new ones read as buttons. **Still to check on a real phone** |
 | 23 | Scripted QA, reproducible | Open `?view=qa` (code in `src/qa.ts`): routing coverage, search audit over the 85 terms in the deck (slides 8–10), content completeness. Runs on the venue data only, no rendered map | Nov 8, 2026: **405 / 408 routes**, unreachable from every start: **Urban Kids**. Search gives the deck's numbers: **26 route · 15 one place · 5 upper only · 12 nothing · 27 misleading, 39 of 85 (46%) fail**, no term changed bucket. **34 of 136 main-level stores miss a logo, today's hours or a description** |
 | 24 | What stays human | "Misleading" (27 terms) is a review of the top results, kept in code as the Nov 6 verdict; one automatic bucket is overridden ("video games": the only main-level match is Naturalizer, a shoe store), and the override stops applying if the results change. Restrooms count as "one place" (nearest amenity) | The report flags any term whose bucket differs from the deck, so a content change shows up on the next run |
+| 25 | Step-free route, scripted | `?view=qa`: every parking area × every Upper Level store (111) with `accessible: true` = **333 routes** | Nov 8, 2026: **333 / 333 found, all by elevator only**; **202** of them take an escalator without the option. On the main level the option changes no route (408 checked) |
+| 26 | Step-free route, on screen | Lot A → Nespresso: toggle ♿ on the store card, start directions; toggle off again; reload; 375 × 812 | Off: "…then up to the Upper Level", last step "Take the escalator up". On: "…then the elevator up to the Upper Level", 180 m → 220 m, last step "Take the elevator up". The route redraws when toggled; the choice survives a reload; `step_free_toggled` is logged. On a phone the button shows only ♿ and the parking chip shortens to "Lot B" |
 | 14 | Build | `npm run build` (tsc strict + Vite) | Clean |
 
 ## Known gaps (shipping with them, on purpose)
@@ -37,7 +39,7 @@ Tested on 5–6 Nov 2026 against Mappedin's public demo venue (`mappedin-demo-ma
 - **Main Level only.** Upstairs stores route to the escalator and hand off with a sign-following instruction.
 - **Walking time** uses 1.1 m/s (a first-time visitor reading a phone). Not calibrated on site.
 - **Entrance names** come from the nearest anchor ("by Nordstrom"). The real door signage may differ.
-- **No accessibility routing toggle** (elevators only). The SDK supports it (`accessible: true`); left out because the main-level slice has no level changes.
+- **Accessibility beyond routing.** Step-free routing shipped (#25, #26); a screen-reader and contrast pass, larger text and accessible parking bays as start points are not done. "wheelchair" and "stroller" still find nothing in search (content, #17).
 - **Route by need**: capped at 6 stops (exact order); edits are kept for the session only; text search relevance comes from Mappedin Search, so a store whose description mentions the term can appear (e.g. Lululemon for "shoes").
 - **English only.**
 - **Opening hours** use the visitor's device clock and time zone.

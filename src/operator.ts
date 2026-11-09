@@ -274,6 +274,7 @@ const LABELS: Record<string, string> = {
   stop_added: 'Added',
   route_reset_to_suggested: 'Back to the suggested stores',
   category_route_reopened: 'Reopened their own route:',
+  step_free_toggled: 'Step-free route',
 };
 
 const ENTRANCE: Record<string, string> = { 'lot-a': 'Parking Lot A', 'lot-b': 'Parking Lot B', garage: 'the Parking Garage' };
@@ -284,7 +285,9 @@ function describe(e: AppEvent) {
   const detail =
     p.store ?? (p.term ? `“${p.term}” (${p.results} found)` : undefined) ?? entrance ?? (p.label ? `“${p.label}”` : undefined) ?? (p.kind ? `${p.kind}, ${p.stops} stop(s)` : '');
   const extra =
-    e.name === 'route_abandoned'
+    e.name === 'step_free_toggled'
+      ? `${p.on ? 'on' : 'off'}${p.from && p.from !== 'unknown' ? `, from ${ENTRANCE[String(p.from)] ?? p.from}` : ''}`
+      : e.name === 'route_abandoned'
       ? `${p.step} of ${p.of}`
       : e.name === 'route_started'
         ? p.kind === 'category'
