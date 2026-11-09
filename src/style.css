@@ -294,3 +294,4 @@ body.operator .sheet, body.operator #here { display: none !important; }
 .qa-report h2 { margin: 0 0 12px; }
 .qa-report table { border-collapse: collapse; width: 100%; margin: 8px 0 20px; }
 .qa-report th, .qa-report td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+.qa-report tr.qa-drift td { background: #fff4e5; }

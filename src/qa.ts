@@ -12,30 +12,47 @@ import { hoursToday, type Store, type Venue } from './venue';
  * 3. Content completeness: what each tenant record is missing (logo, hours, description).
  *
  * The buckets in (2) are automatic. Whether a result is *misleading* ("bank" → a massage chair store)
- * is a human judgement, so the report lists what each term returns for a person to review.
+ * is a human judgement: those terms keep the verdict of the Nov 6 review, and the report lists what each
+ * term returns so a person can redo it. Any term whose automatic bucket differs from the deck is flagged.
  */
 
-/** Everyday searches tested for the presentation (Nov 6, 2026). */
-export const QA_TERMS = [
-  // build a route on the main level
-  'coffee', 'tea', 'pizza', 'chocolate', 'frozen yogurt', 'shoes', 'sneakers', 'running', 'boots', 'jeans', 'denim', 'dress',
-  'lingerie', 'maternity', 'winter jackets', 'yoga', 'watch', 'jewelry', 'sunglasses', 'makeup', 'hair', 'nails', 'phone',
-  'phone repair', 'gifts', 'bags',
-  // one place
-  'burger', 'sushi', 'ice cream', 'suits', 'baby', 'outdoor', 'sportswear', 'barber', 'massage', 'kitchen', 'candles', 'pets',
-  'vitamins', 'pharmacy', 'restroom',
-  // upper level only
-  'perfume', 'skincare', 'glasses', 'luggage', 'video games',
-  // nothing at all
-  'cinema', 'grocery', 'supermarket', 'bookstore', 'dentist', 'tailor', 'arcade', 'eyeglasses', 'optician', 'halal', 'stroller',
-  'wheelchair',
-  // reviewed as misleading (named in the deck)
-  'bank', 'electronics', 'movies', 'dessert', 'gym', 'toy store', 'lost and found', 'dollar store', 'fast food', 'food court',
-  'bubble tea', 'vegan', 'kids', 'home', 'spa', 'books', 'toys', 'wifi',
-];
+type Bucket = 'route' | 'one place' | 'upper only' | 'nothing';
+type Expected = Bucket | 'misleading';
+
+/** The 85 everyday searches behind the deck (slides 8–10), with the bucket each got on Nov 6, 2026. */
+export const QA_TERMS: Record<Expected, string[]> = {
+  route: [
+    'coffee', 'tea', 'pizza', 'chocolate', 'frozen yogurt', 'shoes', 'sneakers', 'running', 'boots', 'jeans', 'denim', 'dress',
+    'lingerie', 'maternity', 'winter jackets', 'yoga', 'watch', 'jewelry', 'sunglasses', 'makeup', 'hair', 'nails', 'phone',
+    'phone repair', 'gifts', 'bags',
+  ],
+  'one place': [
+    'burger', 'sushi', 'ice cream', 'suits', 'baby', 'outdoor', 'sportswear', 'barber', 'massage', 'kitchen', 'candles', 'pets',
+    'vitamins', 'pharmacy', 'restroom',
+  ],
+  'upper only': ['perfume', 'skincare', 'glasses', 'luggage', 'video games'],
+  nothing: [
+    'cinema', 'grocery', 'supermarket', 'bookstore', 'dentist', 'tailor', 'arcade', 'eyeglasses', 'optician', 'halal', 'stroller',
+    'wheelchair',
+  ],
+  // Human review: the results exist but don't match the need.
+  misleading: [
+    'bank', 'electronics', 'movies', 'dessert', 'gym', 'toy store', 'lost and found', 'shoe repair', 'atm', 'dollar store',
+    'fast food', 'food court', 'bubble tea', 'vegan', 'plus size', 'kids', 'home', 'spa', 'currency exchange', 'books', 'toys',
+    'lego', 'watch repair', 'wifi', 'charging', 'post office', 'key cutting',
+  ],
+};
 
 type RouteRow = { from: string; store: string; ok: boolean };
-type SearchRow = { term: string; main: number; upper: number; bucket: 'route' | 'one place' | 'upper only' | 'nothing'; top: string[] };
+type SearchRow = { term: string; expected: Expected; main: number; upper: number; bucket: Bucket; top: string[]; mainNames: string[] };
+
+/**
+ * Human corrections to the automatic bucket, kept only while the search still returns the same main-level stores.
+ * If the results change, the override stops applying and the term shows up as changed.
+ */
+const REVIEWED: Record<string, { main: string; bucket: Bucket; why: string }> = {
+  'video games': { main: 'Naturalizer', bucket: 'upper only', why: 'the only main-level match is a shoe store; EB Games and Nintendo are upstairs' },
+};
 type ContentRow = { store: string; missing: string[] };
 
 export async function runQa(mapData: MapData, venue: Venue, onProgress: (text: string) => void) {
@@ -62,14 +79,21 @@ export async function runQa(mapData: MapData, venue: Venue, onProgress: (text: s
   // 2. Search audit, across both levels
   const byId = new Map(venue.stores.map((s) => [s.location.id, s]));
   const searches: SearchRow[] = [];
-  for (const term of QA_TERMS) {
-    const res = await mapData.Search.query(term);
-    const found = (res.enterpriseLocations ?? []).map((r) => byId.get(r.item.id)).filter((s): s is Store => !!s);
-    const main = found.filter((s) => s.mainLevel && s.location.type === 'tenant');
-    const upper = found.filter((s) => !s.mainLevel);
-    const bucket = main.length >= 2 ? 'route' : main.length === 1 ? 'one place' : upper.length ? 'upper only' : 'nothing';
-    searches.push({ term, main: main.length, upper: upper.length, bucket, top: found.slice(0, 4).map((s) => s.name) });
+  for (const [expected, terms] of Object.entries(QA_TERMS) as [Expected, string[]][]) {
+    for (const term of terms) {
+      const res = await mapData.Search.query(term);
+      const found = (res.enterpriseLocations ?? []).map((r) => byId.get(r.item.id)).filter((s): s is Store => !!s);
+      const main = found.filter((s) => s.mainLevel && s.location.type === 'tenant');
+      // Amenities (restrooms) can't build a store route, but the nearest one is still a direct route.
+      const amenity = found.some((s) => s.mainLevel && s.location.type !== 'tenant');
+      const upper = found.filter((s) => !s.mainLevel);
+      let bucket: Bucket = main.length >= 2 ? 'route' : main.length === 1 || amenity ? 'one place' : upper.length ? 'upper only' : 'nothing';
+      if (REVIEWED[term] && main.map((s) => s.name).join() === REVIEWED[term].main) bucket = REVIEWED[term].bucket;
+      searches.push({ term, expected, main: main.length, upper: upper.length, bucket, top: found.slice(0, 4).map((s) => s.name), mainNames: main.map((s) => s.name) });
+    }
   }
+  // A misleading term that now finds nothing is also a change worth a second look.
+  const drift = searches.filter((s) => (s.expected === 'misleading' ? s.bucket === 'nothing' : s.bucket !== s.expected));
   onProgress('Search audit done');
 
   // 3. Content completeness
@@ -82,20 +106,29 @@ export async function runQa(mapData: MapData, venue: Venue, onProgress: (text: s
     }))
     .filter((r) => r.missing.length);
 
-  return { tenants: tenants.length, routes, failed, unreachable, searches, content };
+  return { tenants: tenants.length, routes, failed, unreachable, searches, drift, content };
 }
 
 export function renderQa(el: HTMLElement, r: Awaited<ReturnType<typeof runQa>>) {
-  const count = (b: SearchRow['bucket']) => r.searches.filter((s) => s.bucket === b).length;
+  const count = (e: Expected) => r.searches.filter((s) => s.expected === e && !r.drift.includes(s)).length;
+  const fails = r.searches.filter((s) => s.expected === 'nothing' || s.expected === 'misleading').length;
   const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
   el.innerHTML = `
     <h2>Scripted QA · ${new Date().toISOString().slice(0, 10)}</h2>
     <p><b>Routing:</b> ${r.routes.length - r.failed.length} of ${r.routes.length} routes found (${r.tenants} main-level stores × every parking area).
     Unreachable from every start: <b>${r.unreachable.map(esc).join(', ') || 'none'}</b>.</p>
-    <p><b>Search (${r.searches.length} terms, both levels):</b> route ${count('route')} · one place ${count('one place')} · upper level only ${count('upper only')} · nothing ${count('nothing')}.
-    Relevance ("misleading") is a human review: check the top results below.</p>
-    <table><thead><tr><th>Term</th><th>Bucket</th><th>Main</th><th>Upper</th><th>Top results</th></tr></thead><tbody>
-    ${r.searches.map((s) => `<tr><td>${esc(s.term)}</td><td>${s.bucket}</td><td>${s.main}</td><td>${s.upper}</td><td>${esc(s.top.join(', '))}</td></tr>`).join('')}
+    <p><b>Search (${r.searches.length} terms, both levels):</b> route ${count('route')} · one place ${count('one place')} · upper level only ${count('upper only')} · nothing ${count('nothing')} · misleading ${count('misleading')} (human review, Nov 6).
+    ${fails} of ${r.searches.length} (${Math.round((fails / r.searches.length) * 100)}%) find nothing or the wrong stores.</p>
+    <p><b>Changed since the deck (Nov 6):</b> ${
+      r.drift.length ? r.drift.map((s) => `${esc(s.term)} (${s.expected} → ${s.bucket})`).join(', ') : 'none, every term lands where the deck says'
+    }.</p>
+    <table><thead><tr><th>Term</th><th>Deck</th><th>Today</th><th>Main</th><th>Upper</th><th>Top results</th></tr></thead><tbody>
+    ${r.searches
+      .map(
+        (s) =>
+          `<tr${r.drift.includes(s) ? ' class="qa-drift"' : ''}><td>${esc(s.term)}</td><td>${s.expected}</td><td>${s.bucket}</td><td title="${esc(s.mainNames.join(', '))}">${s.main}</td><td>${s.upper}</td><td>${esc(s.top.join(', '))}</td></tr>`,
+      )
+      .join('')}
     </tbody></table>
     <p><b>Content gaps:</b> ${r.content.length} of ${r.tenants} stores miss something.</p>
     <table><thead><tr><th>Store</th><th>Missing</th></tr></thead><tbody>
