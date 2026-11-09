@@ -7,11 +7,14 @@ import type { Store, Venue } from './venue';
  * flying across the mall for the holidays. Decorative for now (catching them for a coupon is the
  * "what's next", like the "Catch me if you can" demo).
  *
- * They are not random: they roam the coldest wings, the ones the operator view flags as getting the
- * least foot traffic, so the visitor's eye goes where the tenants need it most.
+ * Where they go: the visitor's route comes first. With a route on screen, a character crosses a
+ * stretch of it (in step-by-step, the stretch just ahead), preferring the stretch that runs past the
+ * coldest storefronts, so the visitor sees it on the way and the eye still goes where tenants need it.
+ * With no route, they roam the coldest wings, the ones the operator view flags as getting the least
+ * foot traffic.
  *
  * Rules: one character of each kind at a time, a new appearance every 20–40 s, about 15 s to cross;
- * nothing while a route is on screen; nothing at all if the device asks for reduced motion.
+ * nothing at all if the device asks for reduced motion.
  */
 export type CharacterKind = 'ghost' | 'pumpkin' | 'santa';
 
@@ -56,7 +59,8 @@ export function startCharacters(
   mapData: MapData,
   mapView: MapView,
   venue: Venue,
-  busy: () => boolean,
+  /** The route the visitor sees right now (main level, walking order), or nothing. */
+  route: () => Coordinate[] | undefined,
 ): () => void {
   if (!kinds.length || matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
   let stopped = false;
@@ -71,8 +75,45 @@ export function startCharacters(
     if (found.length >= 4) cold = found;
   });
 
-  /** A corridor stretch between two cold storefronts 30–90 m apart. */
+  /**
+   * A stretch of the visitor's route, 25–70 m on foot (40–120 m flying), chosen among the ones that
+   * run past the most cold storefronts. It comes toward the visitor half the time.
+   */
+  function alongRoute(r: Coordinate[], fly: boolean): Coordinate[] | undefined {
+    const at: number[] = [0];
+    for (let i = 1; i < r.length; i++) at.push(at[i - 1] + metres(r[i - 1], r[i]));
+    const total = at[at.length - 1];
+    if (total < 12) return undefined;
+    const want = Math.min(total, fly ? between([40, 120]) : between([25, 70]));
+    // The point `d` metres along the route.
+    const point = (d: number) => {
+      const i = Math.max(1, at.findIndex((x) => x >= d));
+      const t = (d - at[i - 1]) / (at[i] - at[i - 1] || 1);
+      const a = r[i - 1], b = r[i];
+      return mapView.createCoordinate(a.latitude + t * (b.latitude - a.latitude), a.longitude + t * (b.longitude - a.longitude), venue.main);
+    };
+    const stretch = (from: number) => [point(from), ...r.filter((_, i) => at[i] > from && at[i] < from + want), point(from + want)];
+    // Score every start 5 m apart by the cold storefronts it passes within 15 m; pick among the best.
+    const scored: { from: number; score: number }[] = [];
+    for (let from = 0; from + want <= total + 0.01; from += 5) {
+      const pts = stretch(from);
+      const score = cold.filter((s) => pts.some((p) => metres(p, s.space.center) < 15)).length;
+      scored.push({ from, score: score + Math.random() * 0.5 });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    const pick = scored[Math.floor(Math.random() * Math.min(3, scored.length))];
+    const pts = stretch(pick.from);
+    const path = fly ? [pts[0], pts[pts.length - 1]] : pts;
+    return Math.random() < 0.5 ? path.reverse() : path;
+  }
+
+  /** The visitor's route first; with no route on screen, a corridor between two cold storefronts. */
   async function pickPath(fly: boolean): Promise<Coordinate[] | undefined> {
+    const r = route();
+    if (r && r.length >= 2) {
+      const p = alongRoute(r, fly);
+      if (p) return p;
+    }
     for (let tries = 0; tries < 8; tries++) {
       const a = cold[Math.floor(Math.random() * cold.length)];
       const options = cold.filter((b) => b !== a && metres(a.space.center, b.space.center) > (fly ? 60 : 30) && metres(a.space.center, b.space.center) < (fly ? 160 : 90));
@@ -97,7 +138,7 @@ export function startCharacters(
   async function run(kind: CharacterKind) {
     await wait(between(FIRST_MS));
     while (!stopped) {
-      if (!busy()) await appear(kind);
+      await appear(kind);
       await wait(between(GAP_MS));
     }
   }
@@ -105,7 +146,7 @@ export function startCharacters(
   async function appear(kind: CharacterKind) {
     const fly = kind === 'santa';
     const path = await pickPath(fly);
-    if (!path || stopped || busy()) return;
+    if (!path || stopped) return;
     const marker = mapView.Markers.add(path[0], `<div class="char char-${kind}${facesLeft(path[0], path[path.length - 1]) ? ' left' : ''}">${ART[kind]}</div>`, {
       rank: 'always-visible',
       interactive: false,
@@ -119,7 +160,7 @@ export function startCharacters(
     // Walk the path at an even speed so the whole crossing takes about CROSS_MS.
     const legs = path.slice(1).map((p, i) => metres(path[i], p));
     const total = legs.reduce((a, b) => a + b, 0) || 1;
-    for (let i = 1; i < path.length && !stopped && !busy(); i++) {
+    for (let i = 1; i < path.length && !stopped; i++) {
       el()?.classList.toggle('left', facesLeft(path[i - 1], path[i]));
       await mapView.Markers.animateTo(marker, path[i], { duration: Math.max(120, (legs[i - 1] / total) * CROSS_MS) }).catch(() => undefined);
     }

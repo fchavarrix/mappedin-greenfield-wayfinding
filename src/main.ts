@@ -616,6 +616,31 @@ function mainLevelPath() {
   return legs.flatMap((l) => l.coordinates).filter((c) => c.floorId === venue.main.id);
 }
 
+/**
+ * The part of the route the visitor is looking at: step-by-step, the current step and the next one
+ * (up to 90 m, what the camera frames); on a store card or a route preview, the whole main-level
+ * route. Nothing without a route.
+ */
+function visibleRoute(): Coordinate[] | undefined {
+  if (!legs.length) return undefined;
+  if (view === 'steps' && guidance) {
+    const ahead: Coordinate[] = [];
+    let walked = 0;
+    let prev: Coordinate | undefined;
+    for (const step of guidance.steps.slice(stepIndex, stepIndex + 2)) {
+      for (const c of step.path) {
+        if (prev) walked += metres(prev, c);
+        prev = c;
+        if (walked > 90) break;
+        // Leave the first metres clear so a character never covers the "You are here" dot.
+        if (walked >= 8) ahead.push(c);
+      }
+    }
+    return ahead.length >= 2 ? ahead : undefined;
+  }
+  return mainLevelPath();
+}
+
 function drawRoute() {
   if (!legs.length) return;
   mapView.Navigation.clear();
@@ -934,10 +959,10 @@ async function init() {
   if (DECOR) decor = decorate(mapData, mapView, venue);
   season = activeSeason();
   if (season) seasonEvent = applySeason(season, mapData, mapView, venue);
-  // Seasonal characters roam the coldest wings; never while a route is on screen. Off with ?decor=0.
+  // Seasonal characters cross the visitor's route first (else the coldest wings). Off with ?decor=0.
   if (season && DECOR) {
     const { startCharacters } = await import('./characters');
-    startCharacters(season.characters, mapData, mapView, venue, () => legs.length > 0 || view === 'steps');
+    startCharacters(season.characters, mapData, mapView, venue, visibleRoute);
   }
   stepFree = recallStepFree();
   $('step-free').hidden = false;
