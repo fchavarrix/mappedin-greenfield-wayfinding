@@ -12,13 +12,13 @@ import type { Start, Store, Venue } from './venue';
 export type Assumption = { key: string; label: string; value: string; range: string; source: string };
 
 export const ASSUMPTIONS: Assumption[] = [
-  { key: 'visits', label: 'Visits per day (one property)', value: '22,000 avg (18k weekday, 30k weekend)', range: '15k–35k', source: 'Regional mall of ~830k sq ft; replace with door counts or parking data' },
+  { key: 'visits', label: 'Visits per day (one property)', value: '22,000 avg (18k weekday, 30k weekend)', range: '15k–35k', source: 'Regional mall of ~830k sq ft; replace with door counters, a one-week manual count or parking data' },
   { key: 'adoption', label: 'Visitors who use the app', value: '4%', range: '2–8% in the first months', source: 'Depends on QR signage and promotion; measured from qr_scan + sessions' },
   { key: 'parking', label: 'Arrivals by parking area', value: 'Lot A 45% · Lot B 35% · Garage 20%', range: 'per property', source: 'Replace with QR scans per entrance after launch' },
   { key: 'routes', label: 'App sessions that start a route', value: '70%', range: '50–85%', source: 'The rest only browse or search; measured by route_started' },
   { key: 'mix', label: 'Routes by type', value: '70% one store · 20% two stores · 10% route by need', range: 'unknown before launch', source: 'Measured by route_started (single / category)' },
   { key: 'pull', label: 'Pull of an anchor vs a regular store', value: '6×', range: '3–10×', source: 'Gravity model; calibrate with store_selected per tenant' },
-  { key: 'decay', label: 'Distance decay', value: 'half the pull every ~170 m', range: '100–300 m', source: 'Gravity model; calibrate with route lengths' },
+  { key: 'decay', label: 'Distance decay', value: 'half the pull every ~560 ft (170 m)', range: '330–980 ft', source: 'Gravity model; calibrate with route lengths' },
   { key: 'arrival', label: 'Routes completed', value: '~88%', range: '80–95%', source: 'Measured by arrived vs route_abandoned' },
   { key: 'drop', label: 'Stops dropped from a route by need', value: '8% base · 35% for low-interest stores', range: 'unknown before launch', source: 'Measured by stop_removed' },
   { key: 'return', label: 'App users who come back within 30 days', value: '~24%', range: '15–35%', source: 'Anonymous device id; baseline for "visitor retention"' },
