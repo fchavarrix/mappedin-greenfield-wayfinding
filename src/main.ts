@@ -982,6 +982,11 @@ async function init() {
     const { startCharacters } = await import('./characters');
     startCharacters(season.characters, mapData, mapView, venue, visibleRoute);
   }
+  // An airship circling over the mall, towing the season's banner. Off with ?decor=0 or ?zeppelin=0.
+  if (DECOR && new URLSearchParams(location.search).get('zeppelin') !== '0') {
+    const { startZeppelin } = await import('./zeppelin');
+    startZeppelin(mapView, venue, $('map'), season?.name ?? 'Welcome to Greenfield');
+  }
   stepFree = recallStepFree();
   $('step-free').hidden = false;
   renderStepFree();
